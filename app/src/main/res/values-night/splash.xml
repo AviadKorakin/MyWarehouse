@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.MyApp.MySplash" parent="Theme.SplashScreen.IconBackground">
+
+        <item name="windowSplashScreenBackground">@color/green</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splashshrink</item>
+        <item name="postSplashScreenTheme">@style/Theme.MyWarehouse</item>    1
+    </style>
+
+</resources>

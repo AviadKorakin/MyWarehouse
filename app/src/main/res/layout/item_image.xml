@@ -1,0 +1,35 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_margin="4dp">
+
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/image_view"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:scaleType="centerCrop" />
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/button_delete"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="end|top"
+        android:contentDescription="@string/delete"
+        android:background="@null"
+        android:clickable="false"
+        android:focusable="false"
+        android:alpha="0.5"
+        android:padding="4dp" />
+    <androidx.appcompat.widget.AppCompatImageView
+        android:id="@+id/button_delete_img"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="end|top"
+        android:src="@drawable/ic_delete"
+        android:contentDescription="@string/delete"
+        android:tint="@color/red"
+        android:clickable="false"
+        android:focusable="false"
+        android:alpha="0.5"
+        android:padding="4dp" />
+
+</FrameLayout>

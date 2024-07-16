@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="role_array">
+        <item>@string/picker</item>
+        <item>@string/warehouse_worker</item>
+        <item>@string/warehouse_worker_picker</item>
+        <item>@string/admin</item>
+    </string-array>
+    <!-- res/values/arrays.xml -->
+    <string-array name="country_codes">
+        <item>+1</item>
+        <item>+44</item>
+        <item>+61</item>
+        <item>+91</item>
+        <item>+972</item>
+        <!-- Add more country codes as needed -->
+    </string-array>
+</resources>
