@@ -3,10 +3,11 @@ package com.mywarehouse.mywarehouse.Models;
 import android.os.Parcel;
 import android.os.Parcelable;
 
+import java.util.Date;
 import java.util.List;
 
 public class Item implements Parcelable {
-    public static final int MIN_LINES_COLLAPSED = 3;
+    public static final int MIN_LINES_COLLAPSED = 1;
     private String barcode;
     private String name;
     private String description;
@@ -15,12 +16,17 @@ public class Item implements Parcelable {
     private double longitude;
     private List<String> imageUrls;
     private boolean collapsed;
+    private boolean active;
+    private String warehouseName;
+    private String supplier;
+    private Date lastModified;
 
     public Item() {
         // Default constructor required for calls to DataSnapshot.getValue(Item.class)
     }
 
-    public Item(String barcode, String name, String description, int quantity, double latitude, double longitude, List<String> imageUrls) {
+    public Item(String barcode, String name, String description, int quantity, double latitude, double longitude, List<String> imageUrls, boolean active
+            ,String warehouseName,String supplier, Date lastModified) {
         this.barcode = barcode;
         this.name = name;
         this.description = description;
@@ -29,17 +35,25 @@ public class Item implements Parcelable {
         this.longitude = longitude;
         this.imageUrls = imageUrls;
         this.collapsed = true; // Default to collapsed state
+        this.active = active;
+        this.warehouseName = warehouseName;
+        this.lastModified = lastModified;
+        this.supplier=supplier;
     }
 
     protected Item(Parcel in) {
         barcode = in.readString();
         name = in.readString();
         description = in.readString();
+        supplier = in.readString();
         quantity = in.readInt();
         latitude = in.readDouble();
         longitude = in.readDouble();
         imageUrls = in.createStringArrayList();
         collapsed = in.readByte() != 0;
+        active = in.readByte() != 0;
+        warehouseName = in.readString();
+        lastModified = new Date(in.readLong());
     }
 
     public static final Creator<Item> CREATOR = new Creator<Item>() {
@@ -118,6 +132,38 @@ public class Item implements Parcelable {
         this.collapsed = collapsed;
     }
 
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
+    }
+
+    public String getWarehouseName() {
+        return warehouseName;
+    }
+
+    public void setWarehouseName(String warehouseName) {
+        this.warehouseName = warehouseName;
+    }
+
+    public Date getLastModified() {
+        return lastModified;
+    }
+
+    public void setLastModified(Date lastModified) {
+        this.lastModified = lastModified;
+    }
+
+    public String getSupplier() {
+        return supplier;
+    }
+
+    public void setSupplier(String supplier) {
+        this.supplier = supplier;
+    }
+
     @Override
     public int describeContents() {
         return 0;
@@ -126,6 +172,7 @@ public class Item implements Parcelable {
     @Override
     public void writeToParcel(Parcel parcel, int i) {
         parcel.writeString(barcode);
+        parcel.writeString(supplier);
         parcel.writeString(name);
         parcel.writeString(description);
         parcel.writeInt(quantity);
@@ -133,5 +180,8 @@ public class Item implements Parcelable {
         parcel.writeDouble(longitude);
         parcel.writeStringList(imageUrls);
         parcel.writeByte((byte) (collapsed ? 1 : 0));
+        parcel.writeByte((byte) (active ? 1 : 0));
+        parcel.writeString(warehouseName);
+        parcel.writeLong(lastModified.getTime());
     }
 }

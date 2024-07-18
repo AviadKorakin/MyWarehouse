@@ -1,20 +1,19 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/layout"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:background="@color/orange"
-    android:paddingVertical="8dp"
-    android:layout_marginBottom="8dp">
+    android:layout_margin="8dp">
 
     <!-- Image RecyclerView Section (Left) -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/image_recycler_view"
         android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="5"
-        android:orientation="vertical"
-         />
+        android:layout_height="200dp"
+        android:layout_gravity="center"
+        android:layout_weight="43"
+        android:orientation="horizontal" />
 
     <!-- Text Section (Center) -->
     <LinearLayout
@@ -22,7 +21,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:layout_weight="8"
+        android:layout_weight="60"
         android:layout_marginStart="8dp"
         android:layout_marginEnd="8dp">
 
@@ -31,12 +30,13 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="4dp">
+            android:layout_marginBottom="8dp">
 
             <androidx.appcompat.widget.AppCompatImageView
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_barcode"
+                android:tint="@color/white"
                 android:layout_marginEnd="8dp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -44,7 +44,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="@color/white"
-                android:textSize="16sp" />
+                android:textSize="18sp" />
         </LinearLayout>
 
         <!-- Name -->
@@ -52,12 +52,13 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="4dp">
+            android:layout_marginBottom="8dp">
 
             <androidx.appcompat.widget.AppCompatImageView
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_name"
+                android:tint="@color/white"
                 android:layout_marginEnd="8dp" />
 
             <com.google.android.material.textview.MaterialTextView
@@ -65,70 +66,96 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="@color/white"
-                android:textSize="16sp" />
+                android:textSize="18sp" />
         </LinearLayout>
 
-
-        <!-- Lat/Lng -->
+        <!-- Provider -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="4dp">
+            android:layout_marginBottom="8dp">
 
             <androidx.appcompat.widget.AppCompatImageView
                 android:layout_width="24dp"
                 android:layout_height="24dp"
-                android:src="@drawable/ic_map"
+                android:src="@drawable/ic_supplier"
                 android:layout_marginEnd="8dp" />
 
             <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/item_lat_lng"
+                android:id="@+id/item_supplier"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/white"
-                android:textSize="16sp" />
+                android:textColor="@color/black"
+
+                android:textSize="18sp" />
         </LinearLayout>
+
 
         <!-- Quantity -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="4dp">
+            android:layout_marginBottom="8dp">
 
             <androidx.appcompat.widget.AppCompatImageView
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_quantity"
+
                 android:layout_marginEnd="8dp" />
 
             <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/item_quantity"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/white"
-                android:textSize="16sp" />
+                android:textColor="@color/black"
+                android:textSize="18sp" />
         </LinearLayout>
+
+        <!-- Warehouse  -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
+            <androidx.appcompat.widget.AppCompatImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_warehouse"
+
+                android:layout_marginEnd="8dp" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/item_warehouse"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/black"
+                android:textSize="18sp" />
+        </LinearLayout>
+
         <!-- Description -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:layout_marginBottom="4dp">
+            android:layout_marginBottom="8dp">
 
             <androidx.appcompat.widget.AppCompatImageView
                 android:layout_width="24dp"
                 android:layout_height="24dp"
                 android:src="@drawable/ic_desc"
+
                 android:layout_marginEnd="8dp" />
 
             <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/item_description"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/white"
-                android:textSize="16sp" />
+                android:textColor="@color/black"
+                android:textSize="18sp" />
         </LinearLayout>
 
     </LinearLayout>
@@ -136,10 +163,9 @@
     <!-- Update Icon (Right) -->
     <androidx.appcompat.widget.AppCompatImageView
         android:id="@+id/update_icon"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
         android:src="@drawable/ic_settings"
-        android:tint="@color/white"
         android:layout_gravity="center_vertical"
         android:layout_marginStart="8dp"
         android:layout_marginEnd="8dp" />

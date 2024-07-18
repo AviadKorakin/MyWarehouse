@@ -55,4 +55,6 @@ dependencies {
     annotationProcessor (libs.compiler)
     implementation (libs.core)
     implementation (libs.gson)
+    implementation (libs.places)
+
 }

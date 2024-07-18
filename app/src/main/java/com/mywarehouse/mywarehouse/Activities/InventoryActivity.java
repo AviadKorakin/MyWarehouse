@@ -40,16 +40,21 @@ public class InventoryActivity extends AppCompatActivity {
             }
 
             if (intent != null) {
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-                    overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
-                    startActivity(intent);
-                    finish();
+                intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+                overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
+                startActivity(intent);
+                finish();
             }
             return true;
         });
 
         findViewById(R.id.button_add_item).setOnClickListener(v -> {
             Intent intent = new Intent(InventoryActivity.this, AddItemActivity.class);
+            startActivity(intent);
+        });
+
+        findViewById(R.id.button_add_warehouse).setOnClickListener(v -> {
+            Intent intent = new Intent(InventoryActivity.this, AddNewWarehouseActivity.class);
             startActivity(intent);
         });
 

@@ -6,7 +6,8 @@
     android:background="@color/green"
     tools:context=".Activities.AddItemActivity">
 
-    <androidx.core.widget.NestedScrollView
+    <com.mywarehouse.mywarehouse.Utilities.CustomNestedScrollView
+        android:id="@+id/custom_nested_scroll_view"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_above="@id/bottom_navigation"
@@ -112,6 +113,43 @@
                     app:autoSizeMinTextSize="12sp"
                     app:autoSizeTextType="uniform" />
             </com.google.android.material.textfield.TextInputLayout>
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/supplier_label"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="4dp"
+                android:text="@string/supplier"
+                android:textColor="@color/white"
+                app:autoSizeMaxTextSize="16sp"
+                app:autoSizeMinTextSize="12sp"
+                app:autoSizeTextType="uniform"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/text_input_name" />
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/text_input_supplier"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:boxBackgroundMode="filled"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/supplier_label">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/input_supplier"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/enter_supplier"
+                    android:autofillHints="supplier"
+                    android:textColor="@color/white"
+                    android:textColorHint="@color/black"
+                    android:background="@color/orange"
+                    app:autoSizeMaxTextSize="14sp"
+                    app:autoSizeMinTextSize="12sp"
+                    app:autoSizeTextType="uniform" />
+            </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/description_label"
@@ -125,7 +163,7 @@
                 app:autoSizeTextType="uniform"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/text_input_name" />
+                app:layout_constraintTop_toBottomOf="@id/text_input_supplier" />
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/text_input_description"
@@ -187,7 +225,29 @@
                     app:autoSizeMinTextSize="12sp"
                     app:autoSizeTextType="uniform" />
             </com.google.android.material.textfield.TextInputLayout>
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/warehouse_label"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="4dp"
+                android:text="@string/select_warehouse"
+                android:textColor="@color/white"
+                app:autoSizeMaxTextSize="16sp"
+                app:autoSizeMinTextSize="12sp"
+                app:autoSizeTextType="uniform"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/text_input_quantity" />
 
+            <androidx.appcompat.widget.AppCompatSpinner
+                android:id="@+id/spinner_warehouse"
+                android:layout_width="0dp"
+                android:layout_height="55dp"
+                android:background="@color/orange"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/warehouse_label"
+                android:layout_marginBottom="16dp" />
             <com.google.android.material.textview.MaterialTextView
                 android:id="@+id/location_label"
                 android:layout_width="0dp"
@@ -200,7 +260,7 @@
                 app:autoSizeTextType="uniform"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/text_input_quantity" />
+                app:layout_constraintTop_toBottomOf="@id/spinner_warehouse" />
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/text_input_location"
@@ -216,13 +276,13 @@
                     android:id="@+id/input_location"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="@string/enter_location"
                     android:textColor="@color/white"
                     android:textColorHint="@color/black"
                     android:background="@color/orange"
                     app:autoSizeMaxTextSize="14sp"
                     app:autoSizeMinTextSize="12sp"
-                    app:autoSizeTextType="uniform" />
+                    app:autoSizeTextType="uniform"
+                    android:enabled="false"/>
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.card.MaterialCardView
@@ -304,7 +364,7 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/recycler_images" />
         </androidx.constraintlayout.widget.ConstraintLayout>
-    </androidx.core.widget.NestedScrollView>
+    </com.mywarehouse.mywarehouse.Utilities.CustomNestedScrollView>
 
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_navigation"

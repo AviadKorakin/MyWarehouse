@@ -152,4 +152,11 @@ public class ImageAdapter extends RecyclerView.Adapter<ImageAdapter.ImageViewHol
             buttonDelete = itemView.findViewById(R.id.button_delete);
         }
     }
+    public void clear()
+    {
+        imageUris.clear();
+        imageIds.clear();
+        imageUrls.clear();
+        notifyDataSetChanged();
+    }
 }

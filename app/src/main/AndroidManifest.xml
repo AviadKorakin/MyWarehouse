@@ -23,9 +23,17 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MyWarehouse"
         tools:targetApi="31">
+        <activity
+            android:name=".Activities.UpdateItemBundledActivity"
+            android:exported="false" />
+        <activity
+            android:name=".Activities.AddNewWarehouseActivity"
+            android:exported="false" />
+
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyDCJuC4QoR1r314NPOZjREwa9bmPkm_iXc" />
+            android:value="AIzaSyCXzQLybdMJq2O_3TamNGKJp0y2gRFa_cA" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -35,7 +43,6 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
-
 
         <activity
             android:name=".Activities.InventoryDetailsActivity"
@@ -76,15 +83,13 @@
             android:exported="true" />
         <activity
             android:name=".Activities.RegisterActivity"
-            android:exported="true">
-        </activity>
+            android:exported="true" />
         <activity
             android:name=".Activities.AccountActivity"
-
             android:exported="true" />
         <activity
             android:name=".Activities.LoginActivity"
-            android:exported="true" >
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

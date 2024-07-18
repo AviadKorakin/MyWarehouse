@@ -57,5 +57,18 @@
     <string name="add_item">Add new Item</string>
     <string name="return_">Return</string>
     <string name="search_hint">Enter Barcode or name</string>
+    <string name="save_warehouse">Save</string>
+    <string name="search_address">Search Adress</string>
+    <string name="google_maps_key">AIzaSyCXzQLybdMJq2O_3TamNGKJp0y2gRFa_cA</string>
+    <string name="instructions_for_warehouse_setting">Tap on the map to place four markers that define the corners of your warehouse. Double-tap a marker to remove it. Press Save Warehouse once four corners are set.
+    </string>
+    <string name="draw_warehouse">Draw warehouse</string>
+    <string name="select_warehouse">Select Warehouse</string>
+    <string name="provider">Provider</string>
+    <string name="enter_provider">Enter Provider</string>
+    <string name="enter_supplier">Enter Supplier</string>
+    <string name="supplier">Supplier</string>
+    <string name="search">Search</string>
+    <string name="reset">Reset</string>
 </resources>
 

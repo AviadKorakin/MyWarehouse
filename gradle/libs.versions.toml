@@ -18,6 +18,7 @@ firebaseAuth = "23.0.0"
 firebaseFirestore = "25.0.0"
 googleGmsGoogleServices = "4.4.2"
 materialVersion = "1.4.0"
+places = "3.5.0"
 playServicesLocation = "21.3.0"
 playServicesMaps = "19.0.0"
 zxingAndroidEmbedded = "4.3.0"
@@ -41,6 +42,7 @@ constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayo
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth", version.ref = "firebaseAuth" }
 firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore", version.ref = "firebaseFirestore" }
 material-v140 = { module = "com.google.android.material:material", version.ref = "materialVersion" }
+places = { module = "com.google.android.libraries.places:places", version.ref = "places" }
 play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "playServicesLocation" }
 play-services-maps = { module = "com.google.android.gms:play-services-maps", version.ref = "playServicesMaps" }
 zxing-android-embedded = { module = "com.journeyapps:zxing-android-embedded", version.ref = "zxingAndroidEmbedded" }

@@ -49,6 +49,26 @@
                     android:layout_height="16dp" />
 
                 <com.google.android.material.button.MaterialButton
+                    android:id="@+id/button_add_warehouse"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Add New Warehouse"
+                    android:textColor="@color/white"
+                    app:icon="@drawable/ic_warehouse"
+                    app:iconTint="@color/white"
+                    app:iconGravity="start"
+                    app:backgroundTint="@color/darkgreen"
+                    android:textSize="18sp"
+                    android:drawablePadding="16dp"
+                    android:padding="16dp"
+                    android:elevation="4dp" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="16dp" />
+
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/button_update_item"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

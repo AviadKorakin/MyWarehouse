@@ -2,6 +2,7 @@ package com.mywarehouse.mywarehouse.Activities;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.MenuItem;
@@ -30,6 +31,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class InventoryDetailsActivity extends AppCompatActivity {
 
@@ -39,9 +42,13 @@ public class InventoryDetailsActivity extends AppCompatActivity {
     private InventoryAdapter inventoryAdapter;
     private List<Item> itemList;
     private Map<String, Item> itemMap; // Map to store items with document ID as the key
+    private Map<String, List<Item>> queryCache; // Map to store query results
     private FirebaseFirestore db;
     private Intent intent;
     private Gson gson;
+    private Handler handler;
+    private Runnable fetchDataRunnable;
+    private ExecutorService executorService;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -50,11 +57,15 @@ public class InventoryDetailsActivity extends AppCompatActivity {
 
         db = FirebaseFirestore.getInstance();
         gson = new Gson();
+        handler = new Handler();
+        executorService = Executors.newSingleThreadExecutor();
 
         findViews();
         initViews();
         setupSearch();
         setupNavigationBar();
+        firstFetchData();// the first fetch by u.i thread
+        fetchData();//setting the thread for next fetches
     }
 
     private void findViews() {
@@ -66,6 +77,7 @@ public class InventoryDetailsActivity extends AppCompatActivity {
     private void initViews() {
         itemList = new ArrayList<>();
         itemMap = new HashMap<>();
+        queryCache = new HashMap<>();
         inventoryAdapter = new InventoryAdapter(itemList);
         recyclerViewItems.setLayoutManager(new LinearLayoutManager(this));
         recyclerViewItems.setAdapter(inventoryAdapter);
@@ -81,13 +93,13 @@ public class InventoryDetailsActivity extends AppCompatActivity {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 String query = s.toString().trim();
-                if (!query.isEmpty()) {
-                    searchItems(query);
+
+                if (queryCache.containsKey(query)) {
+                    updateItemList(queryCache.get(query));
                 } else {
-                    itemList.clear();
-                    itemMap.clear();
-                    inventoryAdapter.notifyDataSetChanged();
+                    searchItems(query);
                 }
+
             }
 
             @Override
@@ -98,6 +110,65 @@ public class InventoryDetailsActivity extends AppCompatActivity {
     }
 
     private void searchItems(String query) {
+        List<Item> results = addToQueryCache(query);
+        updateItemList(results);
+    }
+
+    private List<Item> addToQueryCache(String query) {
+        List<Item> results = new ArrayList<>();
+        if (itemMap.isEmpty()) return null;
+        for (Item item : itemMap.values()) {
+            if (item.getBarcode().contains(query) || item.getName().contains(query)) {
+                results.add(item);
+            }
+        }
+        queryCache.put(query, results);
+        return results;
+    }
+
+    private void updateItemList(List<Item> items) {
+        itemList.clear();
+        itemList.addAll(items);
+        inventoryAdapter.notifyDataSetChanged();
+    }
+
+    private void fetchData() {
+        fetchDataRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (!executorService.isShutdown()) {
+                    db.collection("items")
+                            .get()
+                            .addOnCompleteListener(task -> {
+                                if (task.isSuccessful() && task.getResult() != null) {
+                                    itemMap.clear();
+                                    for (QueryDocumentSnapshot document : task.getResult()) {
+                                        Item item = document.toObject(Item.class);
+                                        String documentId = document.getId();
+                                        Type listType = new TypeToken<ArrayList<String>>() {
+                                        }.getType();
+                                        ArrayList<String> imageUrls = gson.fromJson(gson.toJson(document.get("imageUrls")), listType);
+                                        item.setImageUrls(imageUrls != null ? imageUrls : new ArrayList<>());
+                                        itemMap.put(documentId, item);
+                                    }
+                                    queryCache.clear(); // Clear the query cache
+                                    addToQueryCache("");
+                                    handler.postDelayed(() -> {
+                                        if (!executorService.isShutdown()) {
+                                            executorService.execute(fetchDataRunnable);
+                                        }
+                                    }, 4000); // Fetch data again after 4 seconds
+                                } else {
+                                    Toast.makeText(InventoryDetailsActivity.this, "Error fetching items", Toast.LENGTH_SHORT).show();
+                                }
+                            });
+                }
+            }
+        };
+        executorService.execute(fetchDataRunnable); // Start the initial fetch
+    }
+
+    public void firstFetchData() {
         db.collection("items")
                 .get()
                 .addOnCompleteListener(task -> {
@@ -106,25 +177,17 @@ public class InventoryDetailsActivity extends AppCompatActivity {
                         for (QueryDocumentSnapshot document : task.getResult()) {
                             Item item = document.toObject(Item.class);
                             String documentId = document.getId();
-
-                            if ((item.getBarcode().contains(query) || item.getName().contains(query)) && !itemMap.containsKey(documentId)) {
-                                Type listType = new TypeToken<ArrayList<String>>() {}.getType();
-                                ArrayList<String> imageUrls = gson.fromJson(gson.toJson(document.get("imageUrls")), listType);
-                                item.setImageUrls(imageUrls != null ? imageUrls : new ArrayList<>());
-                                itemMap.put(documentId, item);
-                            }
+                            Type listType = new TypeToken<ArrayList<String>>() {
+                            }.getType();
+                            ArrayList<String> imageUrls = gson.fromJson(gson.toJson(document.get("imageUrls")), listType);
+                            item.setImageUrls(imageUrls != null ? imageUrls : new ArrayList<>());
+                            itemMap.put(documentId, item);
                         }
-                        updateItemList();
+                        searchItems("");
                     } else {
-                        Toast.makeText(this, "Error fetching items", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(InventoryDetailsActivity.this, "Error fetching items", Toast.LENGTH_SHORT).show();
                     }
                 });
-    }
-
-    private void updateItemList() {
-        itemList.clear();
-        itemList.addAll(itemMap.values());
-        inventoryAdapter.notifyDataSetChanged();
     }
 
     private void setupNavigationBar() {
@@ -156,5 +219,12 @@ public class InventoryDetailsActivity extends AppCompatActivity {
                 return true;
             }
         });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        handler.removeCallbacks(fetchDataRunnable); // Stop the handler when activity is destroyed
+        executorService.shutdownNow(); // Shutdown the executor service when activity is destroyed
     }
 }
