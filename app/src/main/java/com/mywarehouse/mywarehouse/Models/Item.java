@@ -11,49 +11,46 @@ public class Item implements Parcelable {
     private String barcode;
     private String name;
     private String description;
-    private int quantity;
-    private double latitude;
-    private double longitude;
+    private int totalQuantity;
     private List<String> imageUrls;
-    private boolean collapsed;
     private boolean active;
-    private String warehouseName;
     private String supplier;
     private Date lastModified;
+    private List<ItemWarehouse> itemWarehouses;
+    private int requestedAmount;
+    private boolean collapsed;
+
 
     public Item() {
-        // Default constructor required for calls to DataSnapshot.getValue(Item.class)
+        // Default constructor for Firebase
     }
 
-    public Item(String barcode, String name, String description, int quantity, double latitude, double longitude, List<String> imageUrls, boolean active
-            ,String warehouseName,String supplier, Date lastModified) {
+    public Item(String barcode, String name, String description, int totalQuantity, List<String> imageUrls, boolean active, String supplier, Date lastModified, List<ItemWarehouse> itemWarehouses,int requestedAmount) {
         this.barcode = barcode;
         this.name = name;
         this.description = description;
-        this.quantity = quantity;
-        this.latitude = latitude;
-        this.longitude = longitude;
+        this.totalQuantity = totalQuantity;
         this.imageUrls = imageUrls;
-        this.collapsed = true; // Default to collapsed state
         this.active = active;
-        this.warehouseName = warehouseName;
+        this.supplier = supplier;
         this.lastModified = lastModified;
-        this.supplier=supplier;
+        this.itemWarehouses = itemWarehouses;
+        this.requestedAmount=requestedAmount;
+        this.collapsed = true;
     }
 
     protected Item(Parcel in) {
         barcode = in.readString();
         name = in.readString();
         description = in.readString();
-        supplier = in.readString();
-        quantity = in.readInt();
-        latitude = in.readDouble();
-        longitude = in.readDouble();
+        totalQuantity = in.readInt();
         imageUrls = in.createStringArrayList();
-        collapsed = in.readByte() != 0;
         active = in.readByte() != 0;
-        warehouseName = in.readString();
+        supplier = in.readString();
         lastModified = new Date(in.readLong());
+        itemWarehouses = in.createTypedArrayList(ItemWarehouse.CREATOR);
+        requestedAmount=in.readInt();
+
     }
 
     public static final Creator<Item> CREATOR = new Creator<Item>() {
@@ -67,6 +64,27 @@ public class Item implements Parcelable {
             return new Item[size];
         }
     };
+
+    @Override
+    public void writeToParcel(Parcel dest, int flags) {
+        dest.writeString(barcode);
+        dest.writeString(name);
+        dest.writeString(description);
+        dest.writeInt(totalQuantity);
+        dest.writeStringList(imageUrls);
+        dest.writeByte((byte) (active ? 1 : 0));
+        dest.writeString(supplier);
+        dest.writeLong(lastModified != null ? lastModified.getTime() : -1);
+        dest.writeTypedList(itemWarehouses);
+        dest.writeInt(requestedAmount);
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    // Getters and Setters
 
     public String getBarcode() {
         return barcode;
@@ -92,28 +110,12 @@ public class Item implements Parcelable {
         this.description = description;
     }
 
-    public int getQuantity() {
-        return quantity;
+    public int getTotalQuantity() {
+        return totalQuantity;
     }
 
-    public void setQuantity(int quantity) {
-        this.quantity = quantity;
-    }
-
-    public double getLatitude() {
-        return latitude;
-    }
-
-    public void setLatitude(double latitude) {
-        this.latitude = latitude;
-    }
-
-    public double getLongitude() {
-        return longitude;
-    }
-
-    public void setLongitude(double longitude) {
-        this.longitude = longitude;
+    public void setTotalQuantity(int totalQuantity) {
+        this.totalQuantity = totalQuantity;
     }
 
     public List<String> getImageUrls() {
@@ -124,36 +126,12 @@ public class Item implements Parcelable {
         this.imageUrls = imageUrls;
     }
 
-    public boolean isCollapsed() {
-        return collapsed;
-    }
-
-    public void setCollapsed(boolean collapsed) {
-        this.collapsed = collapsed;
-    }
-
     public boolean isActive() {
         return active;
     }
 
     public void setActive(boolean active) {
         this.active = active;
-    }
-
-    public String getWarehouseName() {
-        return warehouseName;
-    }
-
-    public void setWarehouseName(String warehouseName) {
-        this.warehouseName = warehouseName;
-    }
-
-    public Date getLastModified() {
-        return lastModified;
-    }
-
-    public void setLastModified(Date lastModified) {
-        this.lastModified = lastModified;
     }
 
     public String getSupplier() {
@@ -164,24 +142,49 @@ public class Item implements Parcelable {
         this.supplier = supplier;
     }
 
-    @Override
-    public int describeContents() {
-        return 0;
+
+    public List<ItemWarehouse> getItemWarehouses() {
+        return itemWarehouses;
+    }
+
+    public void setItemWarehouses(List<ItemWarehouse> itemWarehouses) {
+        this.itemWarehouses = itemWarehouses;
+    }
+    public boolean isCollapsed() {
+        return collapsed;
+    }
+
+    public Date getLastModified() {
+        return lastModified;
+    }
+
+    public void setLastModified(Date lastModified) {
+        this.lastModified = lastModified;
+    }
+
+    public void setCollapsed(boolean collapsed) {
+        this.collapsed = collapsed;
+    }
+    public int getRequestedAmount() {
+        return requestedAmount;
+    }
+
+    public void setRequestedAmount(int requestedAmount) {
+        this.requestedAmount = requestedAmount;
     }
 
     @Override
-    public void writeToParcel(Parcel parcel, int i) {
-        parcel.writeString(barcode);
-        parcel.writeString(supplier);
-        parcel.writeString(name);
-        parcel.writeString(description);
-        parcel.writeInt(quantity);
-        parcel.writeDouble(latitude);
-        parcel.writeDouble(longitude);
-        parcel.writeStringList(imageUrls);
-        parcel.writeByte((byte) (collapsed ? 1 : 0));
-        parcel.writeByte((byte) (active ? 1 : 0));
-        parcel.writeString(warehouseName);
-        parcel.writeLong(lastModified.getTime());
+    public String toString() {
+        return "Item{" +
+                "barcode='" + barcode + '\'' +
+                ", name='" + name + '\'' +
+                ", description='" + description + '\'' +
+                ", totalQuantity=" + totalQuantity +
+                ", imageUrls=" + imageUrls +
+                ", active=" + active +
+                ", supplier='" + supplier + '\'' +
+                ", createdAt=" + lastModified +
+                ", itemWarehouses=" + itemWarehouses +
+                '}';
     }
 }

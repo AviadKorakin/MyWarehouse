@@ -16,7 +16,6 @@ activity = "1.9.0"
 constraintlayout = "2.1.4"
 firebaseAuth = "23.0.0"
 firebaseFirestore = "25.0.0"
-googleGmsGoogleServices = "4.4.2"
 materialVersion = "1.4.0"
 places = "3.5.0"
 playServicesLocation = "21.3.0"
@@ -49,6 +48,5 @@ zxing-android-embedded = { module = "com.journeyapps:zxing-android-embedded", ve
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-google-gms-google-services = { id = "com.google.gms.google-services", version.ref = "googleGmsGoogleServices" }
 
 

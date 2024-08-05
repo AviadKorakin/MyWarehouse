@@ -6,4 +6,6 @@
     <color name="green">#065245</color>
     <color name="darkgreen">#071714</color>
     <color name="red">#FF0000</color>
+    <color name="back">#EFC8A7</color>
+    <color name="front">#FFE5CF</color>
 </resources>

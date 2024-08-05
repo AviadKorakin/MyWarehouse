@@ -22,40 +22,13 @@ public class HomeActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
+        overridePendingTransition(R.anim.dark_screen, R.anim.light_screen);
         findViews();
 
         // Setup the bottom navigation view based on the user role
         NavigationBarManager.getInstance().setupBottomNavigationView(bottomNavigationView, this);
+        NavigationBarManager.getInstance().setNavigation(bottomNavigationView,this,R.id.navigation_home);
 
-        bottomNavigationView.setSelectedItemId(R.id.navigation_home);
-        bottomNavigationView.setOnItemSelectedListener(new NavigationBarView.OnItemSelectedListener() {
-            @Override
-            public boolean onNavigationItemSelected(@NonNull MenuItem item) {
-                int id = item.getItemId();
-                 intent = null;
-                if (id == R.id.navigation_home) {
-                    Toast.makeText(HomeActivity.this, "Home selected", Toast.LENGTH_SHORT).show();
-                } else if (id == R.id.navigation_account) {
-                    intent = new Intent(HomeActivity.this, AccountActivity.class);
-                } else if (id == R.id.navigation_reports) {
-                    intent = new Intent(HomeActivity.this, ReportsActivity.class);
-                } else if (id == R.id.navigation_orders) {
-                    intent = new Intent(HomeActivity.this, OrdersActivity.class);
-                } else if (id == R.id.navigation_inventory) {
-                    intent = new Intent(HomeActivity.this, InventoryActivity.class);
-                }
-
-                if (intent != null) {
-
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-                            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
-                            startActivity(intent);
-                            finish();
-
-                }
-                return true;
-            }
-        });
     }
     private void findViews() {
         bottomNavigationView = findViewById(R.id.bottom_navigation);

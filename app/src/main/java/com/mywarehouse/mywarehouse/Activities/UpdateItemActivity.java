@@ -7,6 +7,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -16,14 +17,15 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.AppCompatImageButton;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.android.gms.location.FusedLocationProviderClient;
-import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -31,6 +33,7 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polygon;
 import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
@@ -44,11 +47,17 @@ import com.google.gson.reflect.TypeToken;
 import com.journeyapps.barcodescanner.ScanContract;
 import com.journeyapps.barcodescanner.ScanOptions;
 import com.mywarehouse.mywarehouse.Adapters.ImageAdapter;
+import com.mywarehouse.mywarehouse.Adapters.WarehouseAdapter;
+import com.mywarehouse.mywarehouse.Enums.LogType;
+import com.mywarehouse.mywarehouse.Firebase.FirebaseUpdateItem;
 import com.mywarehouse.mywarehouse.Models.Item;
+import com.mywarehouse.mywarehouse.Models.ItemWarehouse;
+import com.mywarehouse.mywarehouse.Models.MyLog;
 import com.mywarehouse.mywarehouse.Models.Warehouse;
 import com.mywarehouse.mywarehouse.R;
 import com.mywarehouse.mywarehouse.Utilities.CustomNestedScrollView;
 import com.mywarehouse.mywarehouse.Utilities.NavigationBarManager;
+import com.mywarehouse.mywarehouse.Utilities.MyUser;
 
 import java.io.File;
 import java.io.IOException;
@@ -65,18 +74,20 @@ import java.util.UUID;
 public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyCallback {
 
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
-    private TextInputEditText inputSupplier, inputBarcode, inputName, inputDescription, inputQuantity, inputLocation;
-    private MaterialButton buttonReset, buttonSearch, buttonScanBarcode, buttonUpdateItem, buttonAttachImages, buttonCaptureImage;
+    private TextInputEditText inputSupplier, inputBarcode, inputName, inputDescription;
+    private MaterialButton buttonReset, buttonSearch, buttonUpdateItem;
+    private AppCompatImageButton buttonScanBarcode, buttonAttachImages, buttonCaptureImage;
+    private List<ItemWarehouse> itemWarehouseList = new ArrayList<>();
+    private List<Marker> markers = new ArrayList<>();
     private CustomNestedScrollView customNestedScrollView;
-    private RecyclerView recyclerImages;
+    private RecyclerView recyclerImages,recyclerWarehouses;;
+    private WarehouseAdapter warehouseAdapter;
     private BottomNavigationView bottomNavigationView;
     private Spinner spinnerWarehouse;
     private Intent intent = null;
     private ImageAdapter imageAdapter;
     private GoogleMap map;
     private Gson gson;
-    private LatLng currentLatLng;
-    private Marker lastMarker;
     private FirebaseFirestore db;
     private String currentPhotoPath;
     private ArrayList<String> addedImages;
@@ -88,6 +99,7 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
     private Item currentItem;
     private String documentId;
     private boolean isItemFound = false;
+    private Polygon lastpolygon;
 
     private final ActivityResultLauncher<ScanOptions> barcodeLauncher = registerForActivityResult(new ScanContract(), result -> {
         if (result.getContents() == null) {
@@ -101,7 +113,7 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_update_item);
-
+        overridePendingTransition(R.anim.dark_screen, R.anim.light_screen);
         db = FirebaseFirestore.getInstance();
 
         findViews();
@@ -116,13 +128,12 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
         inputName = findViewById(R.id.input_name);
         inputSupplier = findViewById(R.id.input_supplier);
         inputDescription = findViewById(R.id.input_description);
-        inputQuantity = findViewById(R.id.input_quantity);
-        inputLocation = findViewById(R.id.input_location);
         buttonScanBarcode = findViewById(R.id.button_scan_barcode);
         buttonUpdateItem = findViewById(R.id.button_update_item);
         buttonAttachImages = findViewById(R.id.button_attach_images);
         buttonCaptureImage = findViewById(R.id.button_capture_image);
         recyclerImages = findViewById(R.id.recycler_images);
+        recyclerWarehouses = findViewById(R.id.recycler_warehouses);
         bottomNavigationView = findViewById(R.id.bottom_navigation);
         spinnerWarehouse = findViewById(R.id.spinner_warehouse);
         customNestedScrollView = findViewById(R.id.custom_nested_scroll_view);
@@ -131,12 +142,11 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
     }
 
     private void initViews() {
-        inputLocation.setEnabled(false);
         gson = new Gson();
         recyclerImages.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
         imageAdapter = new ImageAdapter(this);
         recyclerImages.setAdapter(imageAdapter);
-        addedImages=new ArrayList<>();
+        addedImages = new ArrayList<>();
 
         buttonSearch.setOnClickListener(v -> searchItem());
         buttonUpdateItem.setOnClickListener(v -> checkAndUpdateItem());
@@ -192,7 +202,6 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
 
                 if (intent != null) {
                     intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-                    overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
                     startActivity(intent);
                     finish();
                 }
@@ -206,7 +215,9 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map_fragment);
         mapFragment.getMapAsync(this);
 
-        // Disable scroll view while interacting with the map
+        recyclerWarehouses.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false));
+        warehouseAdapter = new WarehouseAdapter(itemWarehouseList);
+        recyclerWarehouses.setAdapter(warehouseAdapter);
     }
 
     private void searchItem() {
@@ -218,43 +229,51 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
             return;
         }
 
-        db.collection("items")
-                .whereEqualTo("barcode", barcode)
-                .whereEqualTo("name", name)
-                .get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    if (!queryDocumentSnapshots.isEmpty()) {
-                        for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
-                            currentItem = document.toObject(Item.class);
-                            documentId = document.getId();
-                            isItemFound = true;
-                            populateFields(currentItem);
-                            enableFields(true);
-                            break;
-                        }
-                    } else {
-                        Toast.makeText(UpdateItemActivity.this, "Item not found. Please check the barcode and name.", Toast.LENGTH_SHORT).show();
-                        isItemFound = false;
-                    }
-                })
-                .addOnFailureListener(e -> Toast.makeText(UpdateItemActivity.this, "Failed to search item: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+        documentId = barcode + "_" + name;
+        FirebaseUpdateItem.fetchItem(documentId, new FirebaseUpdateItem.FirestoreCallback<Item>() {
+            @Override
+            public void onSuccess(Item item) {
+                currentItem = item;
+                isItemFound = true;
+                // Check if the adapter is already set, if not, populateFields will be called after the adapter is set in loadWarehouses
+                if (spinnerWarehouse.getAdapter() != null) {
+                    populateFields(currentItem);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Toast.makeText(UpdateItemActivity.this, "Failed to search item: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                isItemFound = false;
+            }
+        });
     }
 
     private void populateFields(Item item) {
         inputDescription.setText(item.getDescription());
-        inputQuantity.setText(String.valueOf(item.getQuantity()));
         inputSupplier.setText(item.getSupplier());
-        currentLatLng = new LatLng(item.getLatitude(), item.getLongitude());
-        inputLocation.setText(item.getLatitude()+", "+item.getLongitude());
         enableFieldsMap(true);
-        lastMarker = map.addMarker(new MarkerOptions().position(currentLatLng));
-        String warehouseName = item.getWarehouseName();
-        for (int i = 0; i < warehouseList.size(); i++) {
-            if (warehouseList.get(i).getName().equals(warehouseName)) {
-                spinnerWarehouse.setSelection(i);
-                break;
+        enableFields(true);
+
+        // Clear the map and add the marker for the item's location
+        itemWarehouseList.addAll(item.getItemWarehouses());
+        warehouseAdapter.notifyDataSetChanged();
+        if (map != null) {
+            for (ItemWarehouse itemWarehouse : itemWarehouseList) {
+                Marker marker = map.addMarker(new MarkerOptions().position(itemWarehouse.getLocation().toLatLng()));
+                markers.add(marker);
             }
         }
+        if(!warehouseList.isEmpty() || !itemWarehouseList.isEmpty()) {
+            for (int x = 0; x < warehouseList.size(); x++) {
+                if (warehouseList.get(x).getName().equals(itemWarehouseList.get(0).getWarehouseName()) ) {
+                    spinnerWarehouse.setSelection(x);
+                    break;
+                }
+            }
+        }
+
+
         for (String url : item.getImageUrls()) {
             imageAdapter.addDefaultImage(UUID.randomUUID().toString(), Uri.parse("android.resource://" + getPackageName() + "/" + R.drawable.loading_gif)); // Add default image with unique ID
             Uri uri = Uri.parse(url);
@@ -262,11 +281,12 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
         }
     }
 
+
+
+
     private void enableFields(boolean enabled) {
         inputDescription.setEnabled(enabled);
-        inputQuantity.setEnabled(enabled);
         inputSupplier.setEnabled(enabled);
-        inputLocation.setEnabled(enabled);
         buttonUpdateItem.setEnabled(enabled);
         buttonAttachImages.setEnabled(enabled);
         buttonCaptureImage.setEnabled(enabled);
@@ -284,48 +304,49 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
 
     private void depopulateFields() {
         inputDescription.setText("");
-        inputQuantity.setText("");
         inputSupplier.setText("");
         imageAdapter.clear();
     }
-
-    private void handleReturn() {
-        if (imagesToUploadCount == imagesUploadedCount) {
-            imageAdapter.removeAllImages();
-            Intent intent = new Intent(UpdateItemActivity.this, InventoryActivity.class);
-            startActivity(intent);
-            finish();
-        } else {
-            Toast.makeText(this, "Please wait for all images to be uploaded", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-
     @Override
     public void onMapReady(GoogleMap googleMap) {
         map = googleMap;
         map.setMinZoomPreference(15);
         map.getUiSettings().setMapToolbarEnabled(false);
-        map.getUiSettings().setMyLocationButtonEnabled(false);
+        map.setMapType(GoogleMap.MAP_TYPE_HYBRID);
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             map.setMyLocationEnabled(true);
             map.getUiSettings().setMyLocationButtonEnabled(true);
         }
-        map.setMapType(GoogleMap.MAP_TYPE_HYBRID);
-        map.setOnMapClickListener(latLng -> {
-            enableFieldsMap(isItemFound);
-            if(isItemFound) {
-                if (lastMarker != null) {
-                    lastMarker.remove();
-                }
-                currentLatLng = latLng;
-                inputLocation.setText(currentLatLng.latitude + ", " + currentLatLng.longitude);
-                lastMarker = map.addMarker(new MarkerOptions().position(currentLatLng));
-            }
-        });
+        map.setOnMapClickListener(this::handleMapClick);
+        map.setOnMarkerClickListener(this::removeMarkerAndItem);
         map.setOnCameraMoveStartedListener(reason -> customNestedScrollView.setScrollingEnabled(false));
         map.setOnCameraIdleListener(() -> customNestedScrollView.setScrollingEnabled(true));
-        // Set initial state of map interactions based on whether an item is found
+    }
+
+    private void handleMapClick(LatLng latLng) {
+        if (!isLocationInsideWarehouse(latLng,warehouseList.get(spinnerWarehouse.getSelectedItemPosition()).getPoints())) {
+            Toast.makeText(this, "Location must be inside a warehouse", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Marker marker = map.addMarker(new MarkerOptions().position(latLng));
+        markers.add(marker);
+
+        String warehouseName = warehouseList.get(spinnerWarehouse.getSelectedItemPosition()).getName();
+        ItemWarehouse itemWarehouse = new ItemWarehouse(warehouseName, latLng, 0);
+        itemWarehouseList.add(itemWarehouse);
+        warehouseAdapter.notifyItemInserted(itemWarehouseList.size() - 1);
+    }
+
+    private boolean removeMarkerAndItem(Marker marker) {
+        int index = markers.indexOf(marker);
+        if (index != -1) {
+            marker.remove();
+            markers.remove(index);
+            itemWarehouseList.remove(index);
+            warehouseAdapter.notifyItemRemoved(index);
+        }
+        return true;
     }
 
     private void openFileChooser() {
@@ -409,11 +430,6 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
     }
 
     private void checkAndUpdateItem() {
-        if(currentLatLng==null)
-        {
-            Toast.makeText(this, "Please pick location", Toast.LENGTH_SHORT).show();
-            return;
-        }
         if (imagesToUploadCount != imagesUploadedCount) {
             Toast.makeText(this, "Images still uploading please wait", Toast.LENGTH_SHORT).show();
             return;
@@ -421,60 +437,180 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
         String barcode = inputBarcode.getText() != null ? inputBarcode.getText().toString().trim() : "";
         String name = inputName.getText() != null ? inputName.getText().toString().trim() : "";
         String description = inputDescription.getText() != null ? inputDescription.getText().toString().trim() : "";
-        String quantityStr = inputQuantity.getText() != null ? inputQuantity.getText().toString().trim() : "";
         String supplier = inputSupplier.getText() != null ? inputSupplier.getText().toString().trim() : "";
 
-        if (barcode.isEmpty() || name.isEmpty() || description.isEmpty() || quantityStr.isEmpty() || supplier.isEmpty()) {
+        if (barcode.isEmpty() || name.isEmpty() || description.isEmpty() ||  supplier.isEmpty()) {
             Toast.makeText(this, "Please fill in all fields.", Toast.LENGTH_SHORT).show();
             return;
         }
-        saveItem(barcode, name, description, quantityStr, supplier);
+        for (ItemWarehouse itemWarehouse : itemWarehouseList) {
+            if (itemWarehouse.getQuantity() <= 0) {
+                Toast.makeText(this, "Each quantity must be greater than zero.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+        }
+        saveItem(barcode, name,description,supplier);
     }
 
-    private void saveItem(String barcode, String name, String description, String quantityStr, String supplier) {
-        double latitude = currentLatLng.latitude;
-        double longitude = currentLatLng.longitude;
+    private void saveItem(String barcode, String name, String description, String supplier) {
+        int totalQuantity = calculateTotalQuantity();
 
-        int quantity;
-        try {
-            quantity = Integer.parseInt(quantityStr);
-        } catch (NumberFormatException e) {
-            Toast.makeText(this, "Quantity must be a number", Toast.LENGTH_SHORT).show();
+        if (totalQuantity < 0) {
+            Toast.makeText(this, "Total quantity must be a positive number.", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        if (isLocationInsideWarehouse(currentLatLng)) {
-            Item updatedItem = new Item(barcode, name, description, quantity, latitude, longitude, imageAdapter.getImageUrls(), true, selectedWarehouse.getName(), supplier, new Date());
+        if (totalQuantity == 0) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(this, R.style.CustomAlertDialogTheme);
+            LayoutInflater inflater = getLayoutInflater();
+            View dialogView = inflater.inflate(R.layout.dialog_custom, null);
 
-            db.collection("items").document(documentId).set(updatedItem)
-                    .addOnSuccessListener(documentReference -> {
-                        Toast.makeText(UpdateItemActivity.this, "Item saved", Toast.LENGTH_SHORT).show();
-                        doneSuccessfully = true;
-                        addedImages.clear();
-                        finish();
+            builder.setView(dialogView)
+                    .setPositiveButton("Yes", (dialog, which) -> {
+                        Date currentDate = new Date();
+                        Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, currentItem.getRequestedAmount());
+                        saveLog(updatedItem, currentItem);
+
+                        FirebaseUpdateItem.saveItem(documentId, updatedItem, new FirebaseUpdateItem.FirestoreCallback<Void>() {
+                            @Override
+                            public void onSuccess(Void result) {
+                                Toast.makeText(UpdateItemActivity.this, "Item saved", Toast.LENGTH_SHORT).show();
+                                saveOutOfStockLog(updatedItem.getName(), updatedItem.getBarcode(), currentDate);
+
+                                doneSuccessfully = true;
+                                addedImages.clear();
+                                finish();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                Toast.makeText(UpdateItemActivity.this, "Failed to save item: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                            }
+                        });
                     })
-                    .addOnFailureListener(e -> Toast.makeText(this, "Failed to save item: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                    .setNegativeButton("No", (dialog, which) -> dialog.dismiss());
+
+            AlertDialog alertDialog = builder.create();
+            alertDialog.show();
+            alertDialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(ContextCompat.getColor(this, R.color.white));
+            alertDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(ContextCompat.getColor(this, R.color.white));
         } else {
-            Toast.makeText(this, "Location must be inside the selected warehouse", Toast.LENGTH_SHORT).show();
+            Date currentDate = new Date();
+            Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, currentItem.getRequestedAmount());
+            saveLog(updatedItem, currentItem);
+
+            FirebaseUpdateItem.saveItem(documentId, updatedItem, new FirebaseUpdateItem.FirestoreCallback<Void>() {
+                @Override
+                public void onSuccess(Void result) {
+                    Toast.makeText(UpdateItemActivity.this, "Item saved", Toast.LENGTH_SHORT).show();
+
+                    doneSuccessfully = true;
+                    addedImages.clear();
+                    finish();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    Toast.makeText(UpdateItemActivity.this, "Failed to save item: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            });
         }
     }
 
-    private boolean isLocationInsideWarehouse(LatLng location) {
-        if (selectedWarehouse == null || selectedWarehouse.getPoints() == null || selectedWarehouse.getPoints().size() < 3) {
-            return false;
+    private int calculateTotalQuantity() {
+        int totalQuantity = 0;
+        for (ItemWarehouse itemWarehouse : itemWarehouseList) {
+            totalQuantity += itemWarehouse.getQuantity();
+        }
+        return totalQuantity;
+    }
+    private void saveOutOfStockLog(String itemName, String barcode, Date date) {
+        String invokedBy = MyUser.getInstance().getName();
+        String notes = "Item " + itemName + " is out of stock because it was updated during a warehouse inventory check or it has run out due to orders.";
+        MyLog myLog = new MyLog("Item out of stock", date, notes, invokedBy, LogType.OUT_OF_STOCK);
+
+        FirebaseUpdateItem.saveLog(myLog, new FirebaseUpdateItem.FirestoreCallback<Void>() {
+            @Override
+            public void onSuccess(Void result) {
+                // Log saved successfully
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Toast.makeText(UpdateItemActivity.this, "Failed to save log: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void saveLog(Item newItem, Item oldItem) {
+        String invokedBy = MyUser.getInstance().getName();
+        StringBuilder notes = new StringBuilder("Item " + newItem.getName() + " has been updated. Changes:\n");
+
+        if (!newItem.getDescription().equals(oldItem.getDescription())) {
+            notes.append("Description changed from '").append(oldItem.getDescription()).append("' to '").append(newItem.getDescription()).append("'\n");
+        }
+        if (newItem.getTotalQuantity() != oldItem.getTotalQuantity()) {
+            notes.append("Quantity changed from ").append(oldItem.getTotalQuantity()).append(" to ").append(newItem.getTotalQuantity()).append("\n");
+        }
+        if (!newItem.getSupplier().equals(oldItem.getSupplier())) {
+            notes.append("Supplier changed from '").append(oldItem.getSupplier()).append("' to '").append(newItem.getSupplier()).append("'\n");
+        }
+        boolean flag = true;
+        int countNew = newItem.getItemWarehouses().size();
+        int countOld = oldItem.getItemWarehouses().size();
+        if (countNew != countOld) {
+            flag = false;
+        } else {
+            for (ItemWarehouse itemWarehouse : newItem.getItemWarehouses()) {
+                for (ItemWarehouse itemWarehouseOld : oldItem.getItemWarehouses()) {
+                    if (itemWarehouseOld.getWarehouseName().equals(itemWarehouse.getWarehouseName())) {
+                        countOld--;
+                        countNew--;
+                        break;
+                    }
+                }
+            }
+            if (countNew != 0 || countOld != 0) flag = false;
         }
 
-        int crossings = 0;
-        List<LatLng> points = selectedWarehouse.getPoints();
-        for (int i = 0; i < points.size(); i++) {
-            LatLng a = points.get(i);
-            LatLng b = points.get((i + 1) % points.size());
+        if (!flag) {
+            if (newItem.getItemWarehouses().isEmpty()) notes.append("Warehouses: no present location, OUT OF STOCK");
+            else {
+                notes.append("Warehouses changed").append(" to ").append("\n");
+                for (ItemWarehouse itemWarehouse : newItem.getItemWarehouses()) {
+                    notes.append("- Warehouse: ").append(itemWarehouse.getWarehouseName()).append("- Qty: ").append(itemWarehouse.getQuantity()).append("\n");
+                }
+            }
+        }
+        if (!newItem.getImageUrls().equals(oldItem.getImageUrls())) {
+            notes.append("Images updated.\n");
+        }
 
+        MyLog myLog = new MyLog("Item modification", new Date(), notes.toString(), invokedBy, LogType.ITEM_MODIFICATION);
+        FirebaseUpdateItem.saveLog(myLog, new FirebaseUpdateItem.FirestoreCallback<Void>() {
+            @Override
+            public void onSuccess(Void result) {
+                // Log saved successfully
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Toast.makeText(UpdateItemActivity.this, "Failed to save log: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+
+    private boolean isLocationInsideWarehouse(LatLng location, List<LatLng> points) {
+        int crossings = 0;
+        int pointCount = points.size();
+        for (int i = 0; i < pointCount; i++) {
+            LatLng a = points.get(i);
+            LatLng b = points.get((i + 1) % pointCount);
             if (rayCrossesSegment(location, a, b)) {
                 crossings++;
             }
         }
-
         return (crossings % 2 == 1);
     }
 
@@ -486,18 +622,21 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
         double bx = b.longitude;
         double by = b.latitude;
 
+        // Ensure a.y <= b.y
         if (ay > by) {
-            ax = b.longitude;
-            ay = b.latitude;
-            bx = a.longitude;
-            by = a.latitude;
+            double tempX = ax, tempY = ay;
+            ax = bx;
+            ay = by;
+            bx = tempX;
+            by = tempY;
         }
 
+        // Check if the point is outside the vertical range of the segment
         if (py == ay || py == by) {
             py += 0.00000001;
         }
 
-        if (py > by || py < ay || px > Math.max(ax, bx)) {
+        if (py < ay || py > by || px > Math.max(ax, bx)) {
             return false;
         }
 
@@ -507,21 +646,24 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
 
         double red = (ax != bx) ? ((by - ay) / (bx - ax)) : Double.POSITIVE_INFINITY;
         double blue = (ax != px) ? ((py - ay) / (px - ax)) : Double.POSITIVE_INFINITY;
+
         return (blue >= red);
     }
+
 
     private void showWarehouseOnMap(Warehouse warehouse) {
         if (map == null || warehouse == null || warehouse.getPoints() == null || warehouse.getPoints().size() < 3) {
             return;
         }
-
-        map.clear();
         PolygonOptions polygonOptions = new PolygonOptions();
         List<LatLng> sortedPoints = sortPoints(warehouse.getPoints());
         for (LatLng point : sortedPoints) {
             polygonOptions.add(point);
         }
-        map.addPolygon(polygonOptions);
+        if(lastpolygon!=null) {
+            lastpolygon.remove();
+        }
+        lastpolygon= map.addPolygon(polygonOptions);
         map.moveCamera(CameraUpdateFactory.newLatLngZoom(avgPoint(sortedPoints), 19));
     }
 
@@ -570,25 +712,22 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
 
         return points;
     }
-
     private void loadWarehouses() {
-        db.collection("warehouses")
-                .whereEqualTo("active", true)
-                .get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    warehouseList.clear();
-                    for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
-                        String name = (String) document.get("name");
+        FirebaseUpdateItem.fetchWarehouses(new FirebaseUpdateItem.FirestoreCallback<List<Warehouse>>() {
+            @Override
+            public void onSuccess(List<Warehouse> warehouses) {
+                warehouseList.clear();
+                warehouseList.addAll(warehouses);
+                ArrayAdapter<String> adapter = new ArrayAdapter<>(UpdateItemActivity.this, android.R.layout.simple_spinner_item, getWarehouseNames());
+                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                spinnerWarehouse.setAdapter(adapter);
+            }
 
-                        Type listType = new TypeToken<ArrayList<LatLng>>() {}.getType();
-                        ArrayList<LatLng> points = gson.fromJson(gson.toJson(document.get("points")), listType);
-                        warehouseList.add(new Warehouse(name, points, true));
-                    }
-                    ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, getWarehouseNames());
-                    adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-                    spinnerWarehouse.setAdapter(adapter);
-                })
-                .addOnFailureListener(e -> Toast.makeText(this, "Failed to load warehouses: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            @Override
+            public void onFailure(Exception e) {
+                Toast.makeText(UpdateItemActivity.this, "Failed to load warehouses: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private List<String> getWarehouseNames() {
@@ -598,6 +737,7 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
         }
         return names;
     }
+
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
@@ -610,9 +750,10 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
             }
         }
     }
+
     private void deleteImageFromFirebase(ArrayList<String> urls) {
-        if(urls==null)return;
-        for (String url: urls) {
+        if (urls == null) return;
+        for (String url : urls) {
             StorageReference imageRef = FirebaseStorage.getInstance().getReferenceFromUrl(url);
             imageRef.delete().addOnSuccessListener(aVoid -> {
             }).addOnFailureListener(e -> {
@@ -622,12 +763,13 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
         }
         urls.clear();
     }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
         if (!isChangingConfigurations()) {
             if (imagesUploadedCount > 0 && !doneSuccessfully) {
-                if(!addedImages.isEmpty()) {
+                if (!addedImages.isEmpty()) {
                     deleteImageFromFirebase(addedImages);
                     Toast.makeText(this, "Images deleted", Toast.LENGTH_SHORT).show();
                 }

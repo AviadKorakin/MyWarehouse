@@ -70,5 +70,10 @@
     <string name="supplier">Supplier</string>
     <string name="search">Search</string>
     <string name="reset">Reset</string>
+    <string name="checkout">Checkout</string>
+    <string name="order">Order</string>
+    <string name="cancel">Cancel</string>
+    <string name="add_new_warehouse">Add New Warehouse</string>
+    <string name="requests">Requests</string>
 </resources>
 

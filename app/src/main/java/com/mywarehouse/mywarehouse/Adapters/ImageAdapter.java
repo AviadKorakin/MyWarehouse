@@ -10,6 +10,8 @@ import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.widget.AppCompatImageButton;
+import androidx.appcompat.widget.AppCompatImageView;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
@@ -143,8 +145,8 @@ public class ImageAdapter extends RecyclerView.Adapter<ImageAdapter.ImageViewHol
     }
 
     public static class ImageViewHolder extends RecyclerView.ViewHolder {
-        ImageView imageView;
-        ImageButton buttonDelete;
+        AppCompatImageView imageView;
+        AppCompatImageButton buttonDelete;
 
         public ImageViewHolder(@NonNull View itemView) {
             super(itemView);

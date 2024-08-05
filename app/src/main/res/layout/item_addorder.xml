@@ -1,0 +1,137 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@color/back"
+    android:layout_marginBottom="4dp"
+    android:padding="4dp">
+
+    <LinearLayout
+        android:id="@+id/container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/front">
+
+        <!-- Image RecyclerView Section (Left) -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recycler_view_images"
+            android:layout_width="0dp"
+            android:layout_height="150dp"
+            android:layout_weight="30"
+            android:orientation="horizontal" />
+
+        <!-- Text Section (Center) -->
+        <LinearLayout
+            android:id="@+id/text_container"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:layout_weight="37"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:padding="8dp">
+
+            <!-- Barcode -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp"
+                android:gravity="start|top">
+
+                <androidx.appcompat.widget.AppCompatImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_barcode"
+                    android:tint="@color/black"
+                    android:layout_marginEnd="8dp" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/item_barcode"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/black"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:fontFamily="@font/montserrat_bold" />
+            </LinearLayout>
+
+            <!-- Name -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="8dp"
+                android:gravity="start">
+
+                <androidx.appcompat.widget.AppCompatImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_name"
+                    android:tint="@color/black"
+                    android:layout_marginEnd="8dp" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/item_name"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/black"
+                    android:textSize="18sp"
+                    android:textStyle="italic"
+                    android:fontFamily="@font/montserrat_italic" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Minus Button and Quantity Container -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:layout_gravity="center"
+            android:layout_marginEnd="8dp">
+
+            <!-- Plus Button -->
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/button_plus"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/circular_button_background"
+                android:src="@drawable/ic_plus"
+                android:scaleType="centerCrop"
+                android:tint="@color/white"
+                android:layout_marginBottom="8dp"
+                android:layout_marginTop="4dp"
+                android:padding="8dp" />
+
+            <!-- Quantity -->
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/item_quantity"
+                android:layout_width="wrap_content"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:textColor="@color/black"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:fontFamily="@font/montserrat_bold"
+                android:gravity="center"
+                android:layout_marginBottom="8dp"
+                android:layout_marginLeft="7dp"
+                android:textAlignment="center"
+                android:padding="8dp" />
+
+            <!-- Minus Button -->
+            <androidx.appcompat.widget.AppCompatImageButton
+                android:id="@+id/button_minus"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/circular_button_background"
+                android:src="@drawable/ic_minus"
+                android:scaleType="centerCrop"
+                android:tint="@color/white"
+                android:layout_marginBottom="6dp"
+                android:padding="8dp" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

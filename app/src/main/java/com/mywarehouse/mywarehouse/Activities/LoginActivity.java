@@ -15,10 +15,11 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
 import com.google.firebase.auth.FirebaseAuthInvalidUserException;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.FirebaseFirestore;
+import com.mywarehouse.mywarehouse.Firebase.FirebaseLogin;
 import com.mywarehouse.mywarehouse.R;
 import com.mywarehouse.mywarehouse.Utilities.NavigationBarManager;
+import com.mywarehouse.mywarehouse.Utilities.MyUser;
+import com.mywarehouse.mywarehouse.Models.User;
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -27,16 +28,15 @@ public class LoginActivity extends AppCompatActivity {
     private TextView notRegisteredText;
 
     private FirebaseAuth mAuth;
-    private FirebaseFirestore db;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
+        overridePendingTransition(R.anim.dark_screen, R.anim.light_screen);
 
-        // Initialize Firebase Auth and Firestore
+        // Initialize Firebase Auth
         mAuth = FirebaseAuth.getInstance();
-        db = FirebaseFirestore.getInstance();
 
         // Find views
         findViews();
@@ -94,48 +94,49 @@ public class LoginActivity extends AppCompatActivity {
         String email = emailInput.getText().toString().trim();
         String password = passwordInput.getText().toString().trim();
 
-        mAuth.signInWithEmailAndPassword(email, password)
-                .addOnCompleteListener(this, task -> {
-                    if (task.isSuccessful()) {
-                        FirebaseUser user = mAuth.getCurrentUser();
-                        if (user != null) {
-                            fetchUserRole(user.getUid());
-                        }
-                    } else {
-                        String errorMessage;
-                        try {
-                            throw task.getException();
-                        } catch (FirebaseAuthInvalidUserException e) {
-                            errorMessage = "No account found with this email.";
-                        } catch (FirebaseAuthInvalidCredentialsException e) {
-                            errorMessage = "Incorrect password. Please try again.";
-                        } catch (Exception e) {
-                            errorMessage = "Authentication failed: " + e.getMessage();
-                        }
-                        Toast.makeText(LoginActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
-                    }
-                });
+        FirebaseLogin.signInWithEmailAndPassword(email, password, mAuth, new FirebaseLogin.FirestoreCallback() {
+            @Override
+            public void onSuccess() {
+                FirebaseUser user = mAuth.getCurrentUser();
+                if (user != null) {
+                    fetchUserRole(user.getUid());
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                String errorMessage;
+                try {
+                    throw e;
+                } catch (FirebaseAuthInvalidUserException ex) {
+                    errorMessage = "No account found with this email.";
+                } catch (FirebaseAuthInvalidCredentialsException ex) {
+                    errorMessage = "Incorrect password. Please try again.";
+                } catch (Exception ex) {
+                    errorMessage = "Authentication failed: " + ex.getMessage();
+                }
+                Toast.makeText(LoginActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void fetchUserRole(String userId) {
-        db.collection("users").document(userId).get()
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-                        DocumentSnapshot document = task.getResult();
-                        if (document != null && document.exists()) {
-                            String role = document.getString("role");
-                            if (role != null) {
-                                navigateToRoleSpecificActivity(role);
-                            } else {
-                                Toast.makeText(LoginActivity.this, "Role not found", Toast.LENGTH_SHORT).show();
-                            }
-                        } else {
-                            Toast.makeText(LoginActivity.this, "No such document", Toast.LENGTH_SHORT).show();
-                        }
-                    } else {
-                        Toast.makeText(LoginActivity.this, "Failed to fetch role: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
-                    }
-                });
+        FirebaseLogin.fetchUserRole(userId, user -> {
+            if (user != null) {
+                String role = user.getRole();
+                String name = user.getName();
+                if (role != null && name != null) {
+                    MyUser.getInstance().setName(name);
+                    MyUser.getInstance().setDocumentId(userId);
+                    Toast.makeText(LoginActivity.this, "Welcome " + name + ".", Toast.LENGTH_SHORT).show();
+                    navigateToRoleSpecificActivity(role);
+                } else {
+                    Toast.makeText(LoginActivity.this, "Role or name not found", Toast.LENGTH_SHORT).show();
+                }
+            } else {
+                Toast.makeText(LoginActivity.this, "User name or password is wrong", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void navigateToRoleSpecificActivity(String role) {

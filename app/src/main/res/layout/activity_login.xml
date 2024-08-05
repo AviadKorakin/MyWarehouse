@@ -141,7 +141,7 @@
                 app:autoSizeMaxTextSize="14sp"
                 app:autoSizeMinTextSize="12sp"
                 app:autoSizeTextType="uniform"
-                app:backgroundTint="@color/black"
+                app:backgroundTint="@color/darkgreen"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/not_registered_text" />

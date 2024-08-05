@@ -31,7 +31,6 @@
                 android:textColor="@color/white"
                 android:textSize="16sp" />
 
-            >
 
             <!-- Search Bar -->
             <com.google.android.material.textfield.TextInputLayout

@@ -5,28 +5,28 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.text.Editable;
 import android.text.TextWatcher;
-import android.view.MenuItem;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.AppCompatImageButton;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
-import com.google.android.material.navigation.NavigationBarView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.journeyapps.barcodescanner.ScanContract;
+import com.journeyapps.barcodescanner.ScanOptions;
 import com.mywarehouse.mywarehouse.Adapters.InventoryAdapter;
+import com.mywarehouse.mywarehouse.Firebase.FirebaseInventory;
 import com.mywarehouse.mywarehouse.Models.Item;
 import com.mywarehouse.mywarehouse.R;
 import com.mywarehouse.mywarehouse.Utilities.NavigationBarManager;
 
-import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -41,22 +41,39 @@ public class InventoryDetailsActivity extends AppCompatActivity {
     private BottomNavigationView bottomNavigationView;
     private InventoryAdapter inventoryAdapter;
     private List<Item> itemList;
+    private AppCompatImageButton buttonScanBarcode;
     private Map<String, Item> itemMap; // Map to store items with document ID as the key
     private Map<String, List<Item>> queryCache; // Map to store query results
     private FirebaseFirestore db;
     private Intent intent;
-    private Gson gson;
     private Handler handler;
     private Runnable fetchDataRunnable;
     private ExecutorService executorService;
+
+    private final ActivityResultLauncher<ScanOptions> barcodeLauncher = registerForActivityResult(new ScanContract(), result -> {
+        if (result.getContents() == null) {
+            Toast.makeText(this, "Cancelled", Toast.LENGTH_LONG).show();
+        } else {
+            searchInput.setText(result.getContents());
+        }
+    });
+    private final ActivityResultLauncher<Intent> updateItemLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_CANCELED) {
+                    // Refresh the data after returning from UpdateItemBundledActivity
+                    firstFetchData();
+                    inventoryAdapter.notifyDataSetChanged();
+                }
+            }
+    );
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_inventory_details);
-
+        overridePendingTransition(R.anim.dark_screen, R.anim.light_screen);
         db = FirebaseFirestore.getInstance();
-        gson = new Gson();
         handler = new Handler();
         executorService = Executors.newSingleThreadExecutor();
 
@@ -64,23 +81,42 @@ public class InventoryDetailsActivity extends AppCompatActivity {
         initViews();
         setupSearch();
         setupNavigationBar();
-        firstFetchData();// the first fetch by u.i thread
-        fetchData();//setting the thread for next fetches
+        firstFetchData();
+        fetchData();
     }
 
     private void findViews() {
         searchInput = findViewById(R.id.search_input);
         recyclerViewItems = findViewById(R.id.recycler_view_items);
         bottomNavigationView = findViewById(R.id.bottom_navigation);
+        buttonScanBarcode = findViewById(R.id.button_scan_barcode);
     }
 
     private void initViews() {
         itemList = new ArrayList<>();
         itemMap = new HashMap<>();
         queryCache = new HashMap<>();
-        inventoryAdapter = new InventoryAdapter(itemList);
+        inventoryAdapter = new InventoryAdapter(itemList, item -> {
+            Intent intent = new Intent(InventoryDetailsActivity.this, UpdateItemBundledActivity.class);
+            intent.putExtra("item", item);
+            updateItemLauncher.launch(intent);
+        });
+        AppCompatImageButton refreshButton = findViewById(R.id.refresh_button);
+        refreshButton.setOnClickListener(v -> {
+
+            firstFetchData();
+        });
+
         recyclerViewItems.setLayoutManager(new LinearLayoutManager(this));
         recyclerViewItems.setAdapter(inventoryAdapter);
+        buttonScanBarcode.setOnClickListener(v -> {
+            ScanOptions options = new ScanOptions();
+            options.setPrompt("Scan a barcode");
+            options.setBeepEnabled(true);
+            options.setOrientationLocked(true);
+            barcodeLauncher.launch(options);
+        });
+
     }
 
     private void setupSearch() {
@@ -99,7 +135,6 @@ public class InventoryDetailsActivity extends AppCompatActivity {
                 } else {
                     searchItems(query);
                 }
-
             }
 
             @Override
@@ -116,7 +151,7 @@ public class InventoryDetailsActivity extends AppCompatActivity {
 
     private List<Item> addToQueryCache(String query) {
         List<Item> results = new ArrayList<>();
-        if (itemMap.isEmpty()) return null;
+        if (itemMap.isEmpty()) return results;
         for (Item item : itemMap.values()) {
             if (item.getBarcode().contains(query) || item.getName().contains(query)) {
                 results.add(item);
@@ -127,104 +162,66 @@ public class InventoryDetailsActivity extends AppCompatActivity {
     }
 
     private void updateItemList(List<Item> items) {
-        itemList.clear();
-        itemList.addAll(items);
-        inventoryAdapter.notifyDataSetChanged();
+        inventoryAdapter.updateItems(items);
     }
 
     private void fetchData() {
-        fetchDataRunnable = new Runnable() {
-            @Override
-            public void run() {
-                if (!executorService.isShutdown()) {
-                    db.collection("items")
-                            .get()
-                            .addOnCompleteListener(task -> {
-                                if (task.isSuccessful() && task.getResult() != null) {
-                                    itemMap.clear();
-                                    for (QueryDocumentSnapshot document : task.getResult()) {
-                                        Item item = document.toObject(Item.class);
-                                        String documentId = document.getId();
-                                        Type listType = new TypeToken<ArrayList<String>>() {
-                                        }.getType();
-                                        ArrayList<String> imageUrls = gson.fromJson(gson.toJson(document.get("imageUrls")), listType);
-                                        item.setImageUrls(imageUrls != null ? imageUrls : new ArrayList<>());
-                                        itemMap.put(documentId, item);
-                                    }
-                                    queryCache.clear(); // Clear the query cache
-                                    addToQueryCache("");
-                                    handler.postDelayed(() -> {
-                                        if (!executorService.isShutdown()) {
-                                            executorService.execute(fetchDataRunnable);
-                                        }
-                                    }, 4000); // Fetch data again after 4 seconds
-                                } else {
-                                    Toast.makeText(InventoryDetailsActivity.this, "Error fetching items", Toast.LENGTH_SHORT).show();
-                                }
-                            });
-                }
+        fetchDataRunnable = () -> {
+            if (!executorService.isShutdown()) {
+                FirebaseInventory.fetchItems(db, new FirebaseInventory.InventoryCallback() {
+                    @Override
+                    public void onCallback(List<Item> itemList) {
+                        itemMap.clear();
+                        for (Item item : itemList) {
+                            itemMap.put(item.getBarcode() + "_" + item.getName(), item);
+                        }
+                        queryCache.clear(); // Clear the query cache
+                        updateItemList(itemList);
+                        handler.postDelayed(() -> {
+                            if (!executorService.isShutdown()) {
+                                executorService.execute(fetchDataRunnable);
+                            }
+                        }, 10000); // Fetch data again after 10 seconds
+                    }
+
+                    @Override
+                    public void onError(Exception e) {
+                        Toast.makeText(InventoryDetailsActivity.this, "Error fetching items", Toast.LENGTH_SHORT).show();
+                    }
+                });
             }
         };
         executorService.execute(fetchDataRunnable); // Start the initial fetch
     }
 
-    public void firstFetchData() {
-        db.collection("items")
-                .get()
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful() && task.getResult() != null) {
-                        itemMap.clear();
-                        for (QueryDocumentSnapshot document : task.getResult()) {
-                            Item item = document.toObject(Item.class);
-                            String documentId = document.getId();
-                            Type listType = new TypeToken<ArrayList<String>>() {
-                            }.getType();
-                            ArrayList<String> imageUrls = gson.fromJson(gson.toJson(document.get("imageUrls")), listType);
-                            item.setImageUrls(imageUrls != null ? imageUrls : new ArrayList<>());
-                            itemMap.put(documentId, item);
-                        }
-                        searchItems("");
-                    } else {
-                        Toast.makeText(InventoryDetailsActivity.this, "Error fetching items", Toast.LENGTH_SHORT).show();
-                    }
-                });
-    }
 
-    private void setupNavigationBar() {
-        NavigationBarManager.getInstance().setupBottomNavigationView(bottomNavigationView, this);
-        bottomNavigationView.setSelectedItemId(R.id.navigation_inventory);
-        bottomNavigationView.setOnItemSelectedListener(new NavigationBarView.OnItemSelectedListener() {
+    private void firstFetchData() {
+        FirebaseInventory.fetchItems(db, new FirebaseInventory.InventoryCallback() {
             @Override
-            public boolean onNavigationItemSelected(@NonNull MenuItem item) {
-                int id = item.getItemId();
-                intent = null;
-                if (id == R.id.navigation_home) {
-                    intent = new Intent(InventoryDetailsActivity.this, HomeActivity.class);
-                } else if (id == R.id.navigation_account) {
-                    intent = new Intent(InventoryDetailsActivity.this, AccountActivity.class);
-                } else if (id == R.id.navigation_reports) {
-                    intent = new Intent(InventoryDetailsActivity.this, ReportsActivity.class);
-                } else if (id == R.id.navigation_orders) {
-                    intent = new Intent(InventoryDetailsActivity.this, OrdersActivity.class);
-                } else if (id == R.id.navigation_inventory) {
-                    intent = new Intent(InventoryDetailsActivity.this, InventoryActivity.class);
+            public void onCallback(List<Item> itemList) {
+                itemMap.clear();
+                for (Item item : itemList) {
+                    itemMap.put(item.getBarcode() + "_" + item.getName(), item);
                 }
+                updateItemList(itemList);
+                searchItems("");
+            }
 
-                if (intent != null) {
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-                    overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
-                    startActivity(intent);
-                    finish();
-                }
-                return true;
+            @Override
+            public void onError(Exception e) {
+                Toast.makeText(InventoryDetailsActivity.this, "Error fetching items", Toast.LENGTH_SHORT).show();
             }
         });
+    }
+    private void setupNavigationBar() {
+        NavigationBarManager.getInstance().setupBottomNavigationView(bottomNavigationView, this);
+        NavigationBarManager.getInstance().setNavigation(bottomNavigationView,this,R.id.navigation_inventory);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
         handler.removeCallbacks(fetchDataRunnable); // Stop the handler when activity is destroyed
-        executorService.shutdownNow(); // Shutdown the executor service when activity is destroyed
+        executorService.shutdownNow();// Shutdown the executor service when activity is destroyed
     }
 }

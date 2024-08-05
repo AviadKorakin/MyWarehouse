@@ -1,0 +1,123 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/green"
+    android:paddingTop="20dp"
+    tools:context=".Activities.AddOrderActivity">
+
+    <!-- Container for Search Input and Icon -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/search_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+    <LinearLayout
+        android:id="@+id/search_bar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_alignParentTop="true"
+        android:layout_marginTop="30dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/cart_button"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <!-- Search Input -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/text_input_search"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            app:boxBackgroundMode="filled"
+            app:boxBackgroundColor="@color/darkgreen">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/search_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/search_hint"
+                android:textColor="@color/white"
+                android:textColorHint="@color/white"
+                android:padding="12dp" />
+        </com.google.android.material.textfield.TextInputLayout>
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/button_scan_barcode"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/circular_button_background"
+            android:src="@drawable/ic_barcode"
+            android:scaleType="centerCrop"
+            android:tint="@color/white"
+            android:layout_marginEnd="4dp"
+            android:padding="8dp" />
+        <!-- Refresh Button -->
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/refresh_button"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/circular_button_background"
+            android:src="@drawable/ic_update"
+            android:scaleType="centerCrop"
+            android:tint="@color/white"
+            android:layout_marginEnd="4dp"
+            android:padding="8dp" />
+    </LinearLayout>
+        <androidx.appcompat.widget.AppCompatTextView
+            android:id="@+id/incart_number"
+            android:layout_width="35dp"
+            android:layout_height="35dp"
+            android:background="@drawable/circular_button2_background"
+            android:src="@drawable/ic_cart"
+            tools:text="1234"
+            android:textColor="@color/white"
+            android:paddingStart="2dp"
+            android:paddingEnd="2dp"
+            android:textAlignment="center"
+            android:fontFamily="@font/montserrat_italic"
+            android:scaleType="centerCrop"
+            android:tint="@color/white"
+            android:layout_marginEnd="30dp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/search_bar"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:autoSizeMaxTextSize="16dp"
+            app:autoSizeTextType="uniform"/>
+    <androidx.appcompat.widget.AppCompatImageButton
+        android:id="@+id/cart_button"
+        android:layout_width="65dp"
+        android:layout_height="65dp"
+        android:background="@drawable/circular_button_background"
+        android:src="@drawable/ic_cart"
+        android:scaleType="centerCrop"
+        android:tint="@color/white"
+        android:layout_marginTop="15dp"
+        android:layout_marginEnd="4dp"
+        android:padding="10dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/search_bar"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+    <!-- NestedScrollView for RecyclerView -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_view_items"
+        android:layout_width="match_parent"
+        android:layout_below="@id/search_container"
+        android:layout_above="@+id/bottom_navigation"
+        android:layout_height="0dp"
+        android:layout_marginTop="4dp"/>
+
+
+    <!-- Bottom Navigation View -->
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottom_navigation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:background="@color/darkgreen"
+        app:itemRippleColor="@android:color/transparent"
+        app:labelVisibilityMode="unlabeled" />
+
+</RelativeLayout>

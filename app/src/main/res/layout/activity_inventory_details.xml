@@ -33,14 +33,27 @@
                 android:textColorHint="@color/white"
                 android:padding="12dp" />
         </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Search Icon -->
-        <androidx.appcompat.widget.AppCompatImageView
-            android:id="@+id/search_icon"
-            android:layout_width="20dp"
-            android:layout_height="match_parent"
-            android:src="@drawable/ic_search"
-            android:tint="@color/white" />
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/button_scan_barcode"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/circular_button_background"
+            android:src="@drawable/ic_barcode"
+            android:scaleType="centerCrop"
+            android:tint="@color/white"
+            android:layout_marginEnd="4dp"
+            android:padding="8dp" />
+        <!-- Refresh Button -->
+        <androidx.appcompat.widget.AppCompatImageButton
+            android:id="@+id/refresh_button"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/circular_button_background"
+            android:src="@drawable/ic_update"
+            android:scaleType="centerCrop"
+            android:tint="@color/white"
+             android:layout_marginEnd="4dp"
+            android:padding="8dp" />
     </LinearLayout>
 
     <!-- NestedScrollView for RecyclerView -->

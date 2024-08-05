@@ -198,7 +198,6 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:background="@color/orange"
-                    android:entries="@array/role_array"
                     android:padding="8dp"
                     android:enabled="false" />
             </com.google.android.material.textfield.TextInputLayout>

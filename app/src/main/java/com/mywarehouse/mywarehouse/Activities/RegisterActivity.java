@@ -16,35 +16,39 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthUserCollisionException;
-import com.google.firebase.firestore.FirebaseFirestore;
+import com.mywarehouse.mywarehouse.Adapters.RoleSpinnerAdapter;
+import com.mywarehouse.mywarehouse.Firebase.FirebaseRegister;
+import com.mywarehouse.mywarehouse.Models.User;
 import com.mywarehouse.mywarehouse.R;
 
 import java.util.Calendar;
-import java.util.HashMap;
-import java.util.Map;
 
 public class RegisterActivity extends AppCompatActivity {
 
-    private EditText emailInput, birthdayInput, phoneInput, passwordInput, confirmPasswordInput;
+    private EditText nameInput, emailInput, birthdayInput, phoneInput, passwordInput, confirmPasswordInput;
     private Spinner roleSpinner, countryCodeSpinner;
     private Button registerButton, loginButton;
-    private TextView alreadyRegisteredText;
 
     private FirebaseAuth mAuth;
-    private FirebaseFirestore db;
+
+    private String[] roles = {"Picker", "Warehouse worker", "Warehouse worker and picker", "Admin"};
+    private int[] icons = {R.drawable.ic_picker, R.drawable.ic_warehouse_worker, R.drawable.ic_worker_picker, R.drawable.ic_admin}; // Use your icon resource ids
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_register);
+        overridePendingTransition(R.anim.dark_screen, R.anim.light_screen);
 
         // Initialize Firebase
         FirebaseApp.initializeApp(this);
         mAuth = FirebaseAuth.getInstance();
-        db = FirebaseFirestore.getInstance();
 
         // Find views
         findViews();
+
+        RoleSpinnerAdapter roleAdapter = new RoleSpinnerAdapter(this, roles, icons);
+        roleSpinner.setAdapter(roleAdapter);
 
         // Set up date picker for birthday input
         birthdayInput.setOnClickListener(v -> showDatePicker());
@@ -65,17 +69,16 @@ public class RegisterActivity extends AppCompatActivity {
     }
 
     private void findViews() {
+        nameInput = findViewById(R.id.name_input);
         emailInput = findViewById(R.id.email_input);
         birthdayInput = findViewById(R.id.birthday_input);
         phoneInput = findViewById(R.id.phone_input);
         passwordInput = findViewById(R.id.password_input);
         confirmPasswordInput = findViewById(R.id.confirm_password_input);
         roleSpinner = findViewById(R.id.role_spinner);
-        countryCodeSpinner=findViewById(R.id.country_code_spinner);
         countryCodeSpinner = findViewById(R.id.country_code_spinner);
         registerButton = findViewById(R.id.register_button);
         loginButton = findViewById(R.id.login_button);
-        alreadyRegisteredText = findViewById(R.id.already_registered_text);
     }
 
     private void showDatePicker() {
@@ -92,12 +95,18 @@ public class RegisterActivity extends AppCompatActivity {
     }
 
     private boolean validateFields() {
+        String name = nameInput.getText().toString().trim();
         String email = emailInput.getText().toString().trim();
         String birthday = birthdayInput.getText().toString().trim();
         String phone = phoneInput.getText().toString().trim();
         String password = passwordInput.getText().toString().trim();
         String confirmPassword = confirmPasswordInput.getText().toString().trim();
         String role = roleSpinner.getSelectedItem().toString().trim();
+
+        if (TextUtils.isEmpty(name)) {
+            nameInput.setError("Name is required");
+            return false;
+        }
 
         if (TextUtils.isEmpty(email)) {
             emailInput.setError("Email is required");
@@ -171,47 +180,48 @@ public class RegisterActivity extends AppCompatActivity {
         String email = emailInput.getText().toString().trim();
         String password = passwordInput.getText().toString().trim();
 
-        mAuth.createUserWithEmailAndPassword(email, password)
-                .addOnCompleteListener(this, task -> {
-                    if (task.isSuccessful()) {
-                        saveUserToFirestore();
-                    } else {
-                        if (task.getException() instanceof FirebaseAuthUserCollisionException) {
-                            Toast.makeText(RegisterActivity.this, "User already exists, please log in.", Toast.LENGTH_SHORT).show();
-                            Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
-                            startActivity(intent);
-                            finish();
-                        } else {
-                            Toast.makeText(RegisterActivity.this, "Authentication failed: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
-                        }
-                    }
-                });
+        FirebaseRegister.createUserWithEmailAndPassword(email, password, mAuth, new FirebaseRegister.FirestoreCallback() {
+            @Override
+            public void onSuccess() {
+                saveUserToFirestore();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof FirebaseAuthUserCollisionException) {
+                    Toast.makeText(RegisterActivity.this, "User already exists, please log in.", Toast.LENGTH_SHORT).show();
+                    Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
+                    startActivity(intent);
+                    finish();
+                } else {
+                    Toast.makeText(RegisterActivity.this, "Authentication failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
     }
 
     private void saveUserToFirestore() {
         String userId = mAuth.getCurrentUser().getUid();
+        String name = nameInput.getText().toString().trim();
         String email = emailInput.getText().toString().trim();
         String birthday = birthdayInput.getText().toString().trim();
         String phone = countryCodeSpinner.getSelectedItem().toString() + phoneInput.getText().toString().trim();
         String role = roleSpinner.getSelectedItem().toString().trim();
 
-        Map<String, Object> user = new HashMap<>();
-        user.put("email", email);
-        user.put("birthday", birthday);
-        user.put("phone", phone);
-        user.put("role", role);
+        User user = new User(userId, name, email, birthday, phone, role, null, null);
+        FirebaseRegister.saveUserToFirestore(user, new FirebaseRegister.FirestoreCallback() {
+            @Override
+            public void onSuccess() {
+                Toast.makeText(RegisterActivity.this, "Registration successful", Toast.LENGTH_SHORT).show();
+                Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
+                startActivity(intent);
+                finish();
+            }
 
-        db.collection("users").document(userId)
-                .set(user)
-                .addOnCompleteListener(this, task -> {
-                    if (task.isSuccessful()) {
-                        Toast.makeText(RegisterActivity.this, "Registration successful", Toast.LENGTH_SHORT).show();
-                        Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
-                        startActivity(intent);
-                        finish();
-                    } else {
-                        Toast.makeText(RegisterActivity.this, "Failed to save user: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
-                    }
-                });
+            @Override
+            public void onFailure(Exception e) {
+                Toast.makeText(RegisterActivity.this, "Failed to save user: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 }

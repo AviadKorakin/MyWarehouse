@@ -8,7 +8,6 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
@@ -27,12 +26,14 @@ import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
-import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.QuerySnapshot;
+import com.mywarehouse.mywarehouse.Enums.LogType;
+import com.mywarehouse.mywarehouse.Firebase.FirebaseAddNewWarehouse;
+import com.mywarehouse.mywarehouse.Models.MyLog;
 import com.mywarehouse.mywarehouse.Models.Warehouse;
 import com.mywarehouse.mywarehouse.R;
 import com.mywarehouse.mywarehouse.Utilities.CustomNestedScrollView;
+import com.mywarehouse.mywarehouse.Utilities.MyUser;
 import com.mywarehouse.mywarehouse.Utilities.NavigationBarManager;
 
 import org.json.JSONArray;
@@ -47,7 +48,9 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -70,7 +73,7 @@ public class AddNewWarehouseActivity extends AppCompatActivity implements OnMapR
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_new_warehouse);
-
+        overridePendingTransition(R.anim.dark_screen, R.anim.light_screen);
         searchInput = findViewById(R.id.search_input);
         inputName = findViewById(R.id.input_name);
         saveButton = findViewById(R.id.button_save_warehouse);
@@ -242,72 +245,70 @@ public class AddNewWarehouseActivity extends AppCompatActivity implements OnMapR
 
         return points;
     }
+
     private void checkAndSaveWarehouse() {
         String name = inputName.getText().toString().trim();
         if (name.isEmpty()) {
             Toast.makeText(this, "Please enter a name for the warehouse", Toast.LENGTH_SHORT).show();
             return;
         }
-        if (markers.size() != 4)
-        {
+        if (markers.size() != 4) {
             Toast.makeText(this, "Please draw a rectangle with exactly 4 points", Toast.LENGTH_SHORT).show();
             return;
         }
-        db.collection("warehouses")
-                .whereEqualTo("name", name)
-                .get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    if (!queryDocumentSnapshots.isEmpty()) {
-                        Toast.makeText(this, "Warehouse name already exists. Please choose a different name.", Toast.LENGTH_SHORT).show();
-                    } else {
-                        saveWarehouse(name);
-                    }
-                })
-                .addOnFailureListener(e -> Toast.makeText(this, "Error checking warehouse name: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+
+        FirebaseAddNewWarehouse.checkWarehouseExists(name, new FirebaseAddNewWarehouse.FirestoreCallback() {
+            @Override
+            public void onSuccess() {
+                saveWarehouse(name);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Toast.makeText(AddNewWarehouseActivity.this, "Warehouse name already exists. Please choose a different name.", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void saveWarehouse(String name) {
-
-            List<LatLng> points = new ArrayList<>();
-            for (Marker marker : markers) {
-                points.add(marker.getPosition());
-            }
-
-            Warehouse warehouse = new Warehouse(name, points,true);
-            db.collection("warehouses").add(warehouse)
-                    .addOnSuccessListener(documentReference -> {
-                        Toast.makeText(this, "Warehouse saved successfully", Toast.LENGTH_SHORT).show();
-                        finish();
-                    })
-                    .addOnFailureListener(e -> Toast.makeText(this, "Error saving warehouse: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+        List<LatLng> points = new ArrayList<>();
+        for (Marker marker : markers) {
+            points.add(marker.getPosition());
         }
 
+        FirebaseAddNewWarehouse.saveWarehouse(name, points, true, new FirebaseAddNewWarehouse.FirestoreCallback() {
+            @Override
+            public void onSuccess() {
+                Toast.makeText(AddNewWarehouseActivity.this, "Warehouse saved successfully", Toast.LENGTH_SHORT).show();
+                saveLog(name, new Date());
+                finish();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Toast.makeText(AddNewWarehouseActivity.this, "Error saving warehouse: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void saveLog(String warehouseName, Date date) {
+        String invokedBy = MyUser.getInstance().getName();
+        FirebaseAddNewWarehouse.saveLog(warehouseName, date, invokedBy, new FirebaseAddNewWarehouse.FirestoreCallback() {
+            @Override
+            public void onSuccess() {
+                // Log saved successfully
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Toast.makeText(AddNewWarehouseActivity.this, "Failed to save log: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
 
     private void setupBottomNavigation() {
         NavigationBarManager.getInstance().setupBottomNavigationView(bottomNavigationView, this);
-        bottomNavigationView.setOnItemSelectedListener(item -> {
-            Intent intent = null;
-            int id = item.getItemId();
-            if (id == R.id.navigation_home) {
-                intent = new Intent(AddNewWarehouseActivity.this, HomeActivity.class);
-            } else if (id == R.id.navigation_account) {
-                intent = new Intent(AddNewWarehouseActivity.this, AccountActivity.class);
-            } else if (id == R.id.navigation_reports) {
-                intent = new Intent(AddNewWarehouseActivity.this, ReportsActivity.class);
-            } else if (id == R.id.navigation_orders) {
-                intent = new Intent(AddNewWarehouseActivity.this, OrdersActivity.class);
-            } else if (id == R.id.navigation_inventory) {
-                intent = new Intent(AddNewWarehouseActivity.this, InventoryActivity.class);
-            }
-
-            if (intent != null) {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-                overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
-                startActivity(intent);
-                finish();
-            }
-            return true;
-        });
+        NavigationBarManager.getInstance().setNavigation(bottomNavigationView,this,R.id.navigation_inventory);
     }
 
     private void searchLocation(String query) {

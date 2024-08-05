@@ -1,0 +1,38 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="100dp"
+    android:orientation="vertical"
+    android:padding="8dp"
+    android:background="@drawable/item_background"
+    android:gravity="center"
+    android:layout_margin="4dp">
+
+    <TextView
+        android:id="@+id/text_warehouse"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Warehouse"
+        android:textColor="@android:color/black"
+        android:textStyle="bold"
+        android:layout_gravity="center"
+        android:textSize="16sp" />
+
+    <TextView
+        android:id="@+id/text_location"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Location"
+        android:textColor="@android:color/black"
+        android:layout_gravity="center"
+        android:textSize="5sp" />
+
+    <EditText
+        android:id="@+id/edit_quantity"
+        android:layout_width="60dp"
+        android:layout_height="wrap_content"
+        android:inputType="number"
+        android:hint="Qty"
+        android:textColor="@android:color/black"
+        android:textSize="10sp"
+        android:gravity="center" />
+</LinearLayout>

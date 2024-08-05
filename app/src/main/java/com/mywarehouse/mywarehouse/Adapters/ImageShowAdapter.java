@@ -22,7 +22,7 @@ public class ImageShowAdapter extends RecyclerView.Adapter<ImageShowAdapter.Imag
 
     public ImageShowAdapter(Context context, List<String> imageUrls) {
         this.context = context;
-        this.imageUrls = imageUrls != null ? imageUrls : new ArrayList<>(); // Ensure list is not null
+        this.imageUrls = imageUrls != null ? imageUrls : new ArrayList<>();
     }
 
     @NonNull
@@ -34,16 +34,23 @@ public class ImageShowAdapter extends RecyclerView.Adapter<ImageShowAdapter.Imag
 
     @Override
     public void onBindViewHolder(@NonNull ImageViewHolder holder, int position) {
-        String imageUrl = imageUrls.get(position);
-        Glide.with(holder.itemView.getContext())
-                .load(imageUrl)
-                .placeholder(R.drawable.loading_gif)
-                .into(holder.imageView);
+        if (imageUrls.isEmpty()) {
+            Glide.with(holder.itemView.getContext())
+                    .load(R.drawable.ic_loading_image) // Replace with your default image resource
+                    .placeholder(R.drawable.loading_gif)
+                    .into(holder.imageView);
+        } else {
+            String imageUrl = imageUrls.get(position);
+            Glide.with(holder.itemView.getContext())
+                    .load(imageUrl)
+                    .placeholder(R.drawable.loading_gif)
+                    .into(holder.imageView);
+        }
     }
 
     @Override
     public int getItemCount() {
-        return imageUrls.size();
+        return imageUrls.isEmpty() ? 1 : imageUrls.size();
     }
 
     public static class ImageViewHolder extends RecyclerView.ViewHolder {

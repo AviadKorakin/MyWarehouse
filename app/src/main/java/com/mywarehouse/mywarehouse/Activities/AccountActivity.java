@@ -12,9 +12,10 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.mywarehouse.mywarehouse.Adapters.RoleSpinnerAdapter;
+import com.mywarehouse.mywarehouse.Firebase.FirebaseAccount;
 import com.mywarehouse.mywarehouse.R;
 import com.mywarehouse.mywarehouse.Utilities.NavigationBarManager;
 
@@ -26,16 +27,19 @@ public class AccountActivity extends AppCompatActivity {
     private EditText emailInput, birthdayInput, passwordInput, confirmPasswordInput, phoneInput;
     private Spinner roleSpinner, countryCodeSpinner;
     private BottomNavigationView bottomNavigationView;
-    Intent intent = null;
+    private Intent intent = null;
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
     private boolean shouldCancelFetch = false;
+    private String[] roles={"Picker","Warehouse worker","Warehouse worker and picker","Admin"};
+    private int[] icons = {R.drawable.ic_picker,R.drawable.ic_warehouse_worker,
+            R.drawable.ic_worker_picker,R.drawable.ic_admin}; // Use your icon resource i
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_account);
-
+        overridePendingTransition(R.anim.dark_screen, R.anim.light_screen);
         // Initialize Firebase
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
@@ -45,34 +49,7 @@ public class AccountActivity extends AppCompatActivity {
 
         // Setup the bottom navigation view based on the user role
         NavigationBarManager.getInstance().setupBottomNavigationView(bottomNavigationView, this);
-
-        bottomNavigationView.setSelectedItemId(R.id.navigation_account);
-        bottomNavigationView.setOnItemSelectedListener(item -> {
-            int id = item.getItemId();
-            // Set the flag to cancel the fetch operation
-            if (id == R.id.navigation_home) {
-                intent = new Intent(AccountActivity.this, HomeActivity.class);
-            } else if (id == R.id.navigation_inventory) {
-                intent = new Intent(AccountActivity.this, InventoryActivity.class);
-            } else if (id == R.id.navigation_reports) {
-                intent = new Intent(AccountActivity.this, ReportsActivity.class);
-            } else if (id == R.id.navigation_orders) {
-                intent = new Intent(AccountActivity.this, OrdersActivity.class);
-            }
-
-            if (intent != null) {
-                shouldCancelFetch = true;
-                intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-                overridePendingTransition(0, 0);
-                startActivity(intent);
-                finish();
-
-
-            }
-
-            return true;
-        });
-
+        NavigationBarManager.getInstance().setNavigation(bottomNavigationView,this,R.id.navigation_account);
         // Update button listener
         findViewById(R.id.update_button).setOnClickListener(v -> {
             if (validateFields()) {
@@ -92,50 +69,55 @@ public class AccountActivity extends AppCompatActivity {
         confirmPasswordInput = findViewById(R.id.confirm_password_input);
         roleSpinner = findViewById(R.id.role_spinner);
         bottomNavigationView = findViewById(R.id.bottom_navigation);
+
+
+        RoleSpinnerAdapter roleAdapter = new RoleSpinnerAdapter(this, roles, icons);
+        roleSpinner.setAdapter(roleAdapter);
     }
 
     private void fetchUserData() {
         String userId = mAuth.getCurrentUser().getUid();
-        db.collection("users").document(userId).get()
-                .addOnCompleteListener(task -> {
-                    if (shouldCancelFetch) return; // Exit if fetch operation should be canceled
-                    if (task.isSuccessful()) {
-                        DocumentSnapshot document = task.getResult();
-                        if (document != null && document.exists()) {
-                            emailInput.setText(document.getString("email"));
-                            birthdayInput.setText(document.getString("birthday"));
-                            String phoneNumber = document.getString("phone");
-                            if (phoneNumber != null && phoneNumber.contains("0")) {
-                                String[] parts = phoneNumber.split("0", 2);
-                                if (parts.length == 2) {
-                                    String countryCode = parts[0];
-                                    String phone = "0" + parts[1];
-                                    phoneInput.setText(phone);
-                                    String[] countryCodes = getResources().getStringArray(R.array.country_codes);
-                                    for (int i = 0; i < countryCodes.length; i++) {
-                                        if (countryCodes[i].equals(countryCode)) {
-                                            countryCodeSpinner.setSelection(i);
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            // Set the role in the spinner
-                            String role = document.getString("role");
-                            String[] roles = getResources().getStringArray(R.array.role_array);
-                            for (int i = 0; i < roles.length; i++) {
-                                if (roles[i].equals(role)) {
-                                    roleSpinner.setSelection(i);
+        FirebaseAccount.fetchUserData(db, userId, new FirebaseAccount.FetchCallback() {
+            @Override
+            public void onSuccess(DocumentSnapshot document) {
+                if (shouldCancelFetch) return; // Exit if fetch operation should be canceled
+                if (document != null && document.exists()) {
+                    emailInput.setText(document.getString("email"));
+                    birthdayInput.setText(document.getString("birthday"));
+                    String phoneNumber = document.getString("phone");
+                    if (phoneNumber != null && phoneNumber.contains("0")) {
+                        String[] parts = phoneNumber.split("0", 2);
+                        if (parts.length == 2) {
+                            String countryCode = parts[0];
+                            String phone = "0" + parts[1];
+                            phoneInput.setText(phone);
+                            String[] countryCodes = getResources().getStringArray(R.array.country_codes);
+                            for (int i = 0; i < countryCodes.length; i++) {
+                                if (countryCodes[i].equals(countryCode)) {
+                                    countryCodeSpinner.setSelection(i);
                                     break;
                                 }
                             }
-                        } else {
-                            Toast.makeText(AccountActivity.this, "No such document", Toast.LENGTH_SHORT).show();
                         }
-                    } else {
-                        Toast.makeText(AccountActivity.this, "Failed to fetch user data: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
                     }
-                });
+                    // Set the role in the spinner
+                    String role = document.getString("role");
+                    for (int i = 0; i < roles.length; i++) {
+                        if (roles[i].equals(role)) {
+                            roleSpinner.setSelection(i);
+                            break;
+                        }
+                    }
+                } else {
+                    Toast.makeText(AccountActivity.this, "No such document", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Toast.makeText(AccountActivity.this, "Failed to fetch user data: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void updateUserData() {
@@ -143,9 +125,8 @@ public class AccountActivity extends AppCompatActivity {
         String phone = phoneInput.getText().toString().trim();
         String countryCode = countryCodeSpinner.getSelectedItem().toString();
         String password = passwordInput.getText().toString().trim();
-        String confirmPassword = confirmPasswordInput.getText().toString().trim();
 
-        if (!validatePhoneNumber(phone) || !validatePassword(password, confirmPassword)) {
+        if (!validatePhoneNumber(phone) || !validatePassword(password, confirmPasswordInput.getText().toString().trim())) {
             return;
         }
 
@@ -153,23 +134,17 @@ public class AccountActivity extends AppCompatActivity {
         updates.put("phone", countryCode + phone);
         updates.put("countryCode", countryCode);
 
-        db.collection("users").document(userId).update(updates)
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-                        FirebaseUser user = mAuth.getCurrentUser();
-                        if (user != null) {
-                            user.updatePassword(password).addOnCompleteListener(passwordTask -> {
-                                if (passwordTask.isSuccessful()) {
-                                    Toast.makeText(AccountActivity.this, "User data updated successfully", Toast.LENGTH_SHORT).show();
-                                } else {
-                                    Toast.makeText(AccountActivity.this, "Failed to update password: " + passwordTask.getException().getMessage(), Toast.LENGTH_SHORT).show();
-                                }
-                            });
-                        }
-                    } else {
-                        Toast.makeText(AccountActivity.this, "Failed to update phone number: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
-                    }
-                });
+        FirebaseAccount.updateUserData(db, mAuth, userId, updates, password, new FirebaseAccount.UpdateCallback() {
+            @Override
+            public void onSuccess() {
+                Toast.makeText(AccountActivity.this, "User data updated successfully", Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Toast.makeText(AccountActivity.this, "Failed to update user data: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private boolean validateFields() {
