@@ -11,6 +11,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.textview.MaterialTextView;
+import com.mywarehouse.mywarehouse.Models.ItemWarehouse;
 import com.mywarehouse.mywarehouse.Models.PickupItemWithImagesAndLocations;
 import com.mywarehouse.mywarehouse.R;
 
@@ -47,8 +48,13 @@ public class ShowPickUpAdapter extends RecyclerView.Adapter<ShowPickUpAdapter.Pi
         holder.recyclerViewImages.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false));
         holder.recyclerViewImages.setAdapter(imageShowAdapter);
 
-        holder.mapButton.setOnClickListener(v -> onItemClickListener.onMapClick(position));
-        holder.collectButton.setOnClickListener(v -> onItemClickListener.onCollectClick(position));
+        // Modify the listener to pass the list of warehouses
+        holder.mapButton.setOnClickListener(v -> {
+            List<ItemWarehouse> matchingWarehouses = item.getLocations(); // Get the matching warehouses
+            onItemClickListener.onMapClick(position, matchingWarehouses);
+
+        });
+
     }
 
     @Override
@@ -68,13 +74,12 @@ public class ShowPickUpAdapter extends RecyclerView.Adapter<ShowPickUpAdapter.Pi
             itemBarcode = itemView.findViewById(R.id.item_barcode);
             itemQuantity = itemView.findViewById(R.id.item_quantity);
             mapButton = itemView.findViewById(R.id.button_map);
-            collectButton = itemView.findViewById(R.id.button_collect);
             recyclerViewImages = itemView.findViewById(R.id.recycler_view_images);
         }
     }
 
+    // Update the interface to include the list of matching warehouses
     public interface OnItemClickListener {
-        void onMapClick(int position);
-        void onCollectClick(int position);
+        void onMapClick(int position, List<ItemWarehouse> matchingWarehouses);
     }
 }

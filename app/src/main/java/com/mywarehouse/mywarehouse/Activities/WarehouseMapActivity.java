@@ -79,7 +79,7 @@ public class WarehouseMapActivity extends AppCompatActivity implements OnMapRead
     }
 
     private void loadData() {
-        FirebaseWarehouseMap.loadData(db, new FirebaseWarehouseMap.DataCallback() {
+        FirebaseWarehouseMap.loadData(new FirebaseWarehouseMap.DataCallback() {
             @Override
             public void onCallback(List<Item> items, List<Warehouse> warehouses) {
                 itemList.clear();
@@ -149,13 +149,13 @@ public class WarehouseMapActivity extends AppCompatActivity implements OnMapRead
                         .snippet("Quantity: " + itemWarehouse.getQuantity());
 
                 if (itemWarehouse.getQuantity() == 0) {
-                    markerOptions.icon(getBitmapDescriptor(outOfStockIcon));
+                    markerOptions.icon(BitmapDescriptorFactory.fromResource(outOfStockIcon));
                 } else if (isNewItem(item)) {
-                    markerOptions.icon(getBitmapDescriptor(R.drawable.ic_newbox));
+                    markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_newbox));
                 } else if (isOldItem(item)) {
-                    markerOptions.icon(getBitmapDescriptor(R.drawable.ic_oldbox));
+                    markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_oldbox));
                 } else {
-                    markerOptions.icon(getBitmapDescriptor(R.drawable.ic_box));
+                    markerOptions.icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_box));
                 }
                 map.addMarker(markerOptions);
                 boundsBuilder.include(itemLatLng);
@@ -175,7 +175,7 @@ public class WarehouseMapActivity extends AppCompatActivity implements OnMapRead
             map.addMarker(new MarkerOptions()
                     .position(avgPoint)
                     .title("Warehouse: " + warehouse.getName())
-                    .icon(getBitmapDescriptor(R.drawable.ic_warehousemap)));
+                    .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_warehousemap)));
         }
 
         adjustCameraView();
@@ -258,12 +258,4 @@ public class WarehouseMapActivity extends AppCompatActivity implements OnMapRead
         }
     }
 
-    private BitmapDescriptor getBitmapDescriptor(int id) {
-        Drawable vectorDrawable = ContextCompat.getDrawable(this, id);
-        vectorDrawable.setBounds(0, 0, vectorDrawable.getIntrinsicWidth(), vectorDrawable.getIntrinsicHeight());
-        Bitmap bitmap = Bitmap.createBitmap(vectorDrawable.getIntrinsicWidth(), vectorDrawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-        vectorDrawable.draw(canvas);
-        return BitmapDescriptorFactory.fromBitmap(bitmap);
-    }
 }

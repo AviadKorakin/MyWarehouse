@@ -5,18 +5,19 @@ import android.os.Parcelable;
 
 import com.google.android.gms.maps.model.LatLng;
 
-public class ItemWarehouse implements Parcelable ,Comparable<ItemWarehouse>{
+import java.util.Objects;
+
+public class ItemWarehouse implements Parcelable, Comparable<ItemWarehouse> {
     private String warehouseName;
     private MyLatLng location;
     private int quantity;
 
-    public ItemWarehouse()
-    {
-
+    public ItemWarehouse() {
     }
+
     public ItemWarehouse(String warehouseName, LatLng location, int quantity) {
         this.warehouseName = warehouseName;
-        this.location=new MyLatLng(location.latitude,location.longitude);
+        this.location = new MyLatLng(location.latitude, location.longitude);
         this.quantity = quantity;
     }
 
@@ -70,12 +71,26 @@ public class ItemWarehouse implements Parcelable ,Comparable<ItemWarehouse>{
     @Override
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeString(warehouseName);
-        dest.writeParcelable(location,0);
+        dest.writeParcelable(location, 0);
         dest.writeInt(quantity);
     }
 
     @Override
     public int compareTo(ItemWarehouse o) {
         return warehouseName.compareTo(o.warehouseName);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ItemWarehouse that = (ItemWarehouse) o;
+        return warehouseName.equals(that.warehouseName) &&
+                location.equals(that.location);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(warehouseName, location);
     }
 }

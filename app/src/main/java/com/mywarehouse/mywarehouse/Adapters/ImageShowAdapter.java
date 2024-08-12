@@ -7,6 +7,7 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.widget.AppCompatImageView;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
@@ -18,10 +19,8 @@ import java.util.List;
 public class ImageShowAdapter extends RecyclerView.Adapter<ImageShowAdapter.ImageViewHolder> {
 
     private final List<String> imageUrls;
-    private final Context context;
 
     public ImageShowAdapter(Context context, List<String> imageUrls) {
-        this.context = context;
         this.imageUrls = imageUrls != null ? imageUrls : new ArrayList<>();
     }
 
@@ -54,7 +53,7 @@ public class ImageShowAdapter extends RecyclerView.Adapter<ImageShowAdapter.Imag
     }
 
     public static class ImageViewHolder extends RecyclerView.ViewHolder {
-        ImageView imageView;
+        AppCompatImageView imageView;
 
         public ImageViewHolder(@NonNull View itemView) {
             super(itemView);

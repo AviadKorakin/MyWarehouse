@@ -10,12 +10,11 @@ import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.widget.AppCompatImageView;
-import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.textview.MaterialTextView;
-import com.mywarehouse.mywarehouse.Interfaces.ItemDiffCallback;
+
 import com.mywarehouse.mywarehouse.Models.Item;
 import com.mywarehouse.mywarehouse.Models.ItemWarehouse;
 import com.mywarehouse.mywarehouse.R;
@@ -134,10 +133,10 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
             }
         });
 
-        DiffUtil.DiffResult diffResult = DiffUtil.calculateDiff(new ItemDiffCallback(this.itemList, newItemList));
+
         this.itemList.clear();
         this.itemList.addAll(newItemList);
-        diffResult.dispatchUpdatesTo(this);
+        notifyDataSetChanged();
     }
 
     public void updateItem(Item item) {

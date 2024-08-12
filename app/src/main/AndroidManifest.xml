@@ -92,15 +92,6 @@
             android:name=".Activities.InventoryActivity"
             android:exported="true" />
         <activity
-            android:name=".AdminLobbyActivity"
-            android:exported="true" />
-        <activity
-            android:name=".WarehouseWorkerLobbyActivity"
-            android:exported="false" />
-        <activity
-            android:name=".PickerLobbyActivity"
-            android:exported="true" />
-        <activity
             android:name=".Activities.RegisterActivity"
             android:exported="true" />
         <activity
@@ -108,17 +99,14 @@
             android:exported="true" />
         <activity
             android:name=".Activities.LoginActivity"
-            android:exported="true">
+            android:exported="true"
+            android:theme="@style/Theme.MyApp.MySplash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:theme="@style/Theme.MyApp.MySplash" />
     </application>
 
 </manifest>

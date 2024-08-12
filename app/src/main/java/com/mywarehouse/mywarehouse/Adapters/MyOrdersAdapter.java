@@ -12,27 +12,28 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.textview.MaterialTextView;
-import com.mywarehouse.mywarehouse.Enums.OrderType;
 import com.mywarehouse.mywarehouse.Models.Order;
 import com.mywarehouse.mywarehouse.Models.PickupItem;
 import com.mywarehouse.mywarehouse.Models.PickupItemWithImages;
 import com.mywarehouse.mywarehouse.R;
 import com.mywarehouse.mywarehouse.Firebase.FirebaseForAdapters;
+import com.mywarehouse.mywarehouse.Models.Item;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MyOrdersAdapter extends RecyclerView.Adapter<MyOrdersAdapter.MyOrdersViewHolder> {
 
     private Context context;
     private List<Order> orderList;
+    private Map<String, Item> cachedItemsMap;  // Cache for fetched items
 
     public MyOrdersAdapter(Context context, List<Order> orderList) {
         this.context = context;
         this.orderList = orderList;
-        sortOrders();
+        this.cachedItemsMap = new HashMap<>();  // Initialize the cache
     }
 
     @NonNull
@@ -49,7 +50,7 @@ public class MyOrdersAdapter extends RecyclerView.Adapter<MyOrdersAdapter.MyOrde
         holder.orderDate.setText(order.getOrderDate().toString());
         holder.orderStatus.setText(order.getStatus().toString());
 
-        fetchPickupItems(holder.recyclerViewOrderItems, order.getPickupItems(), holder);
+        fetchPickupItems(holder.recyclerViewOrderItems, order.getPickupItems());
 
         holder.itemView.setOnClickListener(v -> {
             if (holder.isExpanded) {
@@ -62,22 +63,60 @@ public class MyOrdersAdapter extends RecyclerView.Adapter<MyOrdersAdapter.MyOrde
         });
     }
 
-    private void fetchPickupItems(RecyclerView recyclerView, List<PickupItem> pickupItems, MyOrdersViewHolder holder) {
+    private void fetchPickupItems(RecyclerView recyclerView, List<PickupItem> pickupItems) {
         List<PickupItemWithImages> pickupItemsWithImagesList = new ArrayList<>();
 
         for (PickupItem pickupItem : pickupItems) {
-            String documentId = pickupItem.getBarcode() + "_" + pickupItem.getName();
-            FirebaseForAdapters.fetchItem(documentId, item -> {
-                PickupItemWithImages pickupItemWithImages = new PickupItemWithImages(pickupItem, item.getImageUrls());
+            String itemKey = pickupItem.getBarcode() + "_" + pickupItem.getName();
+
+            if (cachedItemsMap.containsKey(itemKey)) {
+                Item cachedItem = cachedItemsMap.get(itemKey);
+                PickupItemWithImages pickupItemWithImages = new PickupItemWithImages(pickupItem, cachedItem.getImageUrls());
                 pickupItemsWithImagesList.add(pickupItemWithImages);
+                setItemChangeListener(itemKey);  // Set the real-time listener for the item
 
                 if (pickupItemsWithImagesList.size() == pickupItems.size()) {
-                    PickupItemAdapter pickupItemAdapter = new PickupItemAdapter(context, pickupItemsWithImagesList);
-                    recyclerView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
-                    recyclerView.setAdapter(pickupItemAdapter);
+                    setupRecyclerView(recyclerView, pickupItemsWithImagesList);
                 }
-            });
+            } else {
+                FirebaseForAdapters.fetchItem(itemKey, item -> {
+                    if (item != null) {
+                        cachedItemsMap.put(itemKey, item);  // Store in cache
+                        PickupItemWithImages pickupItemWithImages = new PickupItemWithImages(pickupItem, item.getImageUrls());
+                        pickupItemsWithImagesList.add(pickupItemWithImages);
+                        setItemChangeListener(itemKey);  // Set the real-time listener for the item
+
+                        if (pickupItemsWithImagesList.size() == pickupItems.size()) {
+                            setupRecyclerView(recyclerView, pickupItemsWithImagesList);
+                        }
+                    }
+                });
+            }
         }
+    }
+
+    private void setItemChangeListener(String itemKey) {
+        FirebaseForAdapters.listenToItemChanges(itemKey, updatedItem -> {
+            if (updatedItem != null) {
+                cachedItemsMap.put(itemKey, updatedItem);  // Update the cache
+
+                // Find all relevant positions in the order list that contain this itemKey
+                for (int i = 0; i < orderList.size(); i++) {
+                    List<PickupItem> pickupItems = orderList.get(i).getPickupItems();
+                    for (PickupItem pickupItem : pickupItems) {
+                        if ((pickupItem.getBarcode() + "_" + pickupItem.getName()).equals(itemKey)) {
+                            notifyItemChanged(i);  // Notify the adapter to refresh the view
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    private void setupRecyclerView(RecyclerView recyclerView, List<PickupItemWithImages> pickupItemsWithImagesList) {
+        PickupItemAdapter pickupItemAdapter = new PickupItemAdapter(context, pickupItemsWithImagesList);
+        recyclerView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
+        recyclerView.setAdapter(pickupItemAdapter);
     }
 
     private void expand(final RecyclerView recyclerView) {
@@ -124,37 +163,6 @@ public class MyOrdersAdapter extends RecyclerView.Adapter<MyOrdersAdapter.MyOrde
         });
         animator.setInterpolator(new AccelerateDecelerateInterpolator());
         return animator;
-    }
-
-    private void sortOrders() {
-        Collections.sort(orderList, new Comparator<Order>() {
-            @Override
-            public int compare(Order o1, Order o2) {
-                int priorityComparison = getOrderPriority(o1.getStatus()) - getOrderPriority(o2.getStatus());
-                if (priorityComparison != 0) {
-                    return priorityComparison;
-                }
-                return o1.getOrderDate().compareTo(o2.getOrderDate());
-            }
-
-            private int getOrderPriority(OrderType status) {
-                switch (status) {
-                    case REGISTERED:
-                        return 1;
-                    case IN_PROGRESS:
-                        return 2;
-                    case TRANSACTIONS_NEEDED:
-                        return 3;
-                    case PICKED_UP:
-                        return 4;
-                    case COMPLETED:
-                        return 5;
-                    default:
-                        return 6;
-                }
-            }
-        });
-        notifyDataSetChanged();
     }
 
     @Override

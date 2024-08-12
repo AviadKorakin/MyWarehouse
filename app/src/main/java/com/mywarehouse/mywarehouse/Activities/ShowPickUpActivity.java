@@ -30,7 +30,6 @@ import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolygonOptions;
-import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
 import com.mywarehouse.mywarehouse.Adapters.ShowPickUpAdapter;
 import com.mywarehouse.mywarehouse.Enums.OrderType;
@@ -43,11 +42,10 @@ import com.mywarehouse.mywarehouse.Models.Warehouse;
 import com.mywarehouse.mywarehouse.R;
 import com.mywarehouse.mywarehouse.Utilities.CustomNestedScrollView;
 import com.mywarehouse.mywarehouse.Utilities.MyUser;
-import com.mywarehouse.mywarehouse.Utilities.NavigationBarManager;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 
 public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyCallback {
@@ -58,12 +56,15 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
     private List<PickupItemWithImagesAndLocations> pickupItemWithImagesAndLocationsList;
     private GoogleMap map;
     private List<Marker> selectedMarkers;
-    private BottomNavigationView bottomNavigationView;
     private MaterialButton acceptButton, denyButton;
     private CustomNestedScrollView customNestedScrollView;
-    private HashMap<LatLng, PickupItem> locationItemMap;
+    private HashMap<Marker, PickupItem> markerItemMap;
     private HashMap<Marker, Boolean> markerSelectedMap;
-    private HashMap<PickupItem, LatLng> pickupItemLocationMap;
+    private HashMap<Marker,Boolean> markerChoosenMap;
+    private HashMap<PickupItem, Integer> pickupItemQuantityMap;
+    private HashMap<Marker, ItemWarehouse> markerItemWarehouseHashMap;
+    private HashMap<ItemWarehouse,Marker> itemWarehouseMarkerHashMap;
+    private HashMap<ItemWarehouse, Integer> itemWarehouseMarkerQuantityMap;
     private boolean isCollectModeActive = false;
     private PickupItem currentPickupItem;
 
@@ -80,46 +81,25 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
         recyclerViewPickupItems.setLayoutManager(new LinearLayoutManager(this));
         pickupItemWithImagesAndLocationsList = new ArrayList<>();
         selectedMarkers = new ArrayList<>();
-        locationItemMap = new HashMap<>();
+        markerItemMap = new HashMap<>();
         markerSelectedMap = new HashMap<>();
-        pickupItemLocationMap = new HashMap<>();
+        pickupItemQuantityMap = new HashMap<>();
+        markerItemWarehouseHashMap = new HashMap<>();
+        itemWarehouseMarkerQuantityMap=new HashMap<>();
+        itemWarehouseMarkerHashMap=new HashMap<>();
+        markerChoosenMap=new HashMap<>();
 
         showPickUpAdapter = new ShowPickUpAdapter(this, pickupItemWithImagesAndLocationsList, new ShowPickUpAdapter.OnItemClickListener() {
             @Override
-            public void onMapClick(int position) {
+            public void onMapClick(int position, List<ItemWarehouse> warehouses) {
                 PickupItemWithImagesAndLocations item = pickupItemWithImagesAndLocationsList.get(position);
                 currentPickupItem = item.getPickupItemWithImages().getPickupItem();
-                updateSelectedMarkers(item.getLocations(), item.getPickupItemWithImages().getPickupItem());
-            }
-
-            @Override
-            public void onCollectClick(int position) {
-                if (currentPickupItem == null) {
-                    Toast.makeText(ShowPickUpActivity.this, "Please select items on the map before collecting.", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                PickupItemWithImagesAndLocations item = pickupItemWithImagesAndLocationsList.get(position);
-                currentPickupItem = item.getPickupItemWithImages().getPickupItem();
-
-                // Check if the item has multiple locations
-                if (itemHasMultipleLocations(item.getPickupItemWithImages().getPickupItem())) {
-                    promptUserToSelectMarker(item.getPickupItemWithImages().getPickupItem());
-                } else {
-                    // Use the position of the selected marker instead of the iterator's next key
-                    if (!selectedMarkers.isEmpty()) {
-                        LatLng selectedLocation = selectedMarkers.get(0).getPosition();
-                        collectItem(item.getPickupItemWithImages().getPickupItem(), position, selectedLocation);
-                    } else {
-                        Toast.makeText(ShowPickUpActivity.this, "No marker selected.", Toast.LENGTH_SHORT).show();
-                    }
-                }
+                updateSelectedMarkers(warehouses, currentPickupItem);
+                promptUserToSelectMarker();
             }
         });
         recyclerViewPickupItems.setAdapter(showPickUpAdapter);
 
-        bottomNavigationView = findViewById(R.id.bottom_navigation);
-        setupBottomNavigationView();
 
         acceptButton = findViewById(R.id.accept_button);
         denyButton = findViewById(R.id.deny_button);
@@ -139,7 +119,7 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
     }
 
     private void fetchPickupItemsWithImagesAndLocations() {
-        FirebaseShowPickUp.fetchPickupItemsWithImagesAndLocations(order.getPickupItems(), order.getSelectedWarehouse(), pickupItemsWithImagesAndLocations -> {
+        FirebaseShowPickUp.fetchPickupItemsWithImagesAndLocations(pickupItemQuantityMap, order.getPickupItems(), order.getSelectedWarehouse(), pickupItemsWithImagesAndLocations -> {
             pickupItemWithImagesAndLocationsList.clear();
             pickupItemWithImagesAndLocationsList.addAll(pickupItemsWithImagesAndLocations);
             showPickUpAdapter.notifyDataSetChanged();
@@ -173,7 +153,7 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
 
     private void focusOnWarehouse(Warehouse warehouse) {
         if (map != null) {
-            List<LatLng> points = sortPoints(warehouse.getPoints());
+            List<LatLng> points = warehouse.getPoints();
             LatLngBounds.Builder builder = new LatLngBounds.Builder();
             PolygonOptions polygonOptions = new PolygonOptions();
             for (LatLng point : points) {
@@ -192,6 +172,17 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
                     .icon(getBitmapDescriptor(R.drawable.ic_warehousemap)));
         }
     }
+    private LatLng avgPoint(List<LatLng> points) {
+        double latSum = 0;
+        double lngSum = 0;
+
+        for (LatLng point : points) {
+            latSum += point.latitude;
+            lngSum += point.longitude;
+        }
+
+        return new LatLng(latSum / points.size(), lngSum / points.size());
+    }
 
     private void addMarkersToMap() {
         if (map != null) {
@@ -202,7 +193,9 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
                             .position(location)
                             .title(item.getPickupItemWithImages().getPickupItem().getName())
                             .icon(getBitmapDescriptor(R.drawable.ic_box)));
-                    locationItemMap.put(location, item.getPickupItemWithImages().getPickupItem());
+                    markerItemMap.put(marker, item.getPickupItemWithImages().getPickupItem());
+                    markerItemWarehouseHashMap.put(marker, itemWarehouse);
+                    itemWarehouseMarkerHashMap.put(itemWarehouse,marker);
                     markerSelectedMap.put(marker, false);
                 }
             }
@@ -210,45 +203,32 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
     }
 
     private void updateSelectedMarkers(List<ItemWarehouse> locations, PickupItem pickupItem) {
-        // Reset previous selected markers
-        for (Marker marker : markerSelectedMap.keySet()) {
-            if (markerSelectedMap.getOrDefault(marker, false)) {
-                marker.setIcon(getBitmapDescriptor(R.drawable.ic_box));
-                markerSelectedMap.put(marker, false);
-            }
-        }
+        resetSelectedMarkers();
 
-        // Add new selected markers
+        List<ItemWarehouse> selectedWarehouses = new ArrayList<>();
         for (ItemWarehouse itemWarehouse : locations) {
-            LatLng location = itemWarehouse.getLocation().toLatLng();
-            for (Marker marker : markerSelectedMap.keySet()) {
-                if (marker.getPosition().equals(location)) {
-                    marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_boxgreen));
+                    Marker marker= itemWarehouseMarkerHashMap.get(itemWarehouse);
+                    if(markerChoosenMap.getOrDefault(marker,false))
+                    {
+                        marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_redbox));
+                    }
+                    else marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_boxgreen));
                     markerSelectedMap.put(marker, true);
                     selectedMarkers.add(marker);
+
+                    selectedWarehouses.add(itemWarehouse);
                 }
             }
-        }
 
-        // Adjust the zoom level to fit all selected markers
-        if (!selectedMarkers.isEmpty()) {
-            LatLngBounds.Builder builder = new LatLngBounds.Builder();
-            for (Marker marker : selectedMarkers) {
-                builder.include(marker.getPosition());
-            }
-            LatLngBounds bounds = builder.build();
-            map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 100)); // Padding of 50 pixels for a closer zoom
-        }
-    }
 
-    private void promptUserToSelectMarker(PickupItem pickupItem) {
+    private void promptUserToSelectMarker() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this, R.style.CustomAlertDialogTheme);
         LayoutInflater inflater = getLayoutInflater();
         View dialogView = inflater.inflate(R.layout.dialog_select_marker, null);
 
         builder.setView(dialogView)
                 .setPositiveButton("OK", (dialog, which) -> isCollectModeActive = true)
-                .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+                .setNegativeButton("Cancel", (dialog, which) ->isCollectModeActive = false);
 
         AlertDialog alertDialog = builder.create();
         alertDialog.show();
@@ -257,30 +237,12 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
     }
 
 
-    private void collectItem(PickupItem pickupItem, int position, LatLng selectedLocation) {
-        pickupItemWithImagesAndLocationsList.remove(position);
-        showPickUpAdapter.notifyDataSetChanged();
-        pickupItemLocationMap.put(pickupItem, selectedLocation);
-        Toast.makeText(this, "Item collected", Toast.LENGTH_SHORT).show();
-        resetSelectedMarkers();
-    }
-
     private void resetSelectedMarkers() {
         for (Marker marker : selectedMarkers) {
             marker.setIcon(getBitmapDescriptor(R.drawable.ic_box));
             markerSelectedMap.put(marker, false);
         }
         selectedMarkers.clear();
-    }
-
-    private boolean itemHasMultipleLocations(PickupItem pickupItem) {
-        List<LatLng> locations = new ArrayList<>();
-        for (LatLng location : locationItemMap.keySet()) {
-            if (locationItemMap.get(location).equals(pickupItem)) {
-                locations.add(location);
-            }
-        }
-        return locations.size() > 1;
     }
 
     private BitmapDescriptor getBitmapDescriptor(int id) {
@@ -292,95 +254,79 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
         return BitmapDescriptorFactory.fromBitmap(bitmap);
     }
 
-    private void setupBottomNavigationView() {
-        NavigationBarManager.getInstance().setupBottomNavigationView(bottomNavigationView, this);
-        NavigationBarManager.getInstance().setNavigation(bottomNavigationView,this,R.id.navigation_orders);
-    }
 
     private void handleMapClick(LatLng latLng) {
         // No need to handle map clicks in this implementation
     }
 
     private boolean handleMarkerClick(Marker marker) {
-        if (isCollectModeActive && markerSelectedMap.getOrDefault(marker, false)) {
-            marker.setIcon(getBitmapDescriptor(R.drawable.ic_box));
-            markerSelectedMap.put(marker, false);
-            selectedMarkers.remove(marker);
-            LatLng selectedLocation = marker.getPosition();
-            pickupItemLocationMap.put(currentPickupItem, selectedLocation);
 
-            int position = findPickupItemWithImagesIndex(currentPickupItem);
-            if (position != -1) {
-                collectItem(currentPickupItem, position, selectedLocation);
+        if (isCollectModeActive) {
+            if (markerSelectedMap.getOrDefault(marker, false)) {
+                if (markerChoosenMap.getOrDefault(marker, false)) {
+                    marker.setIcon(getBitmapDescriptor(R.drawable.ic_boxgreen));
+                    ItemWarehouse selectedWarehouse = markerItemWarehouseHashMap.get(marker);
+                    int quantity = itemWarehouseMarkerQuantityMap.get(selectedWarehouse);
+                    pickupItemQuantityMap.put(currentPickupItem, pickupItemQuantityMap.get(currentPickupItem) + quantity);
+                    markerChoosenMap.remove(marker);
+                    return true;
+                } else {
+
+                    marker.setIcon(getBitmapDescriptor(R.drawable.ic_redbox));
+                    ItemWarehouse selectedWarehouse = markerItemWarehouseHashMap.get(marker);
+                    markerChoosenMap.put(marker, true);
+
+                    int remainingQuantity = pickupItemQuantityMap.get(currentPickupItem);
+                    if (selectedWarehouse.getQuantity() < remainingQuantity) {
+                        itemWarehouseMarkerQuantityMap.put(selectedWarehouse, selectedWarehouse.getQuantity());
+                        pickupItemQuantityMap.put(currentPickupItem, remainingQuantity - selectedWarehouse.getQuantity());
+                        Toast.makeText(ShowPickUpActivity.this, "In order to complete the selection pick more points, remaining amount: "+ (remainingQuantity - selectedWarehouse.getQuantity()) , Toast.LENGTH_LONG).show();
+                    } else {
+                        itemWarehouseMarkerQuantityMap.put(selectedWarehouse, remainingQuantity);
+                        pickupItemQuantityMap.put(currentPickupItem, 0);
+                        isCollectModeActive = false;
+                        Toast.makeText(ShowPickUpActivity.this, "Selection for pickup Item : "+currentPickupItem.getName() +" completed, you can edit it in anytime." , Toast.LENGTH_LONG).show();
+                    }
+                    return true;
+                }
             }
-
-            isCollectModeActive = false;
-            return true;
+            else {
+                Toast.makeText(ShowPickUpActivity.this, "Choose markers in green or red", Toast.LENGTH_LONG).show();
+                return false;
+            }
+        }
+        else {
+            Toast.makeText(ShowPickUpActivity.this, "To choose markers press on the map mode", Toast.LENGTH_LONG).show();
         }
         return false;
     }
 
-    private int findPickupItemWithImagesIndex(PickupItem pickupItem) {
-        for (int i = 0; i < pickupItemWithImagesAndLocationsList.size(); i++) {
-            if (pickupItemWithImagesAndLocationsList.get(i).getPickupItemWithImages().getPickupItem().equals(pickupItem)) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private LatLng avgPoint(List<LatLng> points) {
-        double lat = 0;
-        double lng = 0;
-        for (LatLng point : points) {
-            lat += point.latitude;
-            lng += point.longitude;
-        }
-        return new LatLng(lat / points.size(), lng / points.size());
-    }
-
-    private List<LatLng> sortPoints(List<LatLng> points) {
-        if (points.size() != 4) {
-            throw new IllegalArgumentException("There must be exactly 4 points.");
-        }
-
-        LatLng bottomLeft = Collections.min(points, (p1, p2) -> {
-            if (p1.latitude != p2.latitude) {
-                return Double.compare(p1.latitude, p2.latitude);
-            } else {
-                return Double.compare(p1.longitude, p2.longitude);
-            }
-        });
-
-        points.remove(bottomLeft);
-
-        points.sort((p1, p2) -> {
-            double angle1 = Math.atan2(p1.latitude - bottomLeft.latitude, p1.longitude - bottomLeft.longitude);
-            double angle2 = Math.atan2(p2.latitude - bottomLeft.latitude, p2.longitude - bottomLeft.longitude);
-            return Double.compare(angle1, angle2);
-        });
-
-        points.add(0, bottomLeft);
-
-        return points;
-    }
-
     private void handleAcceptButtonClick() {
-        if (pickupItemWithImagesAndLocationsList.isEmpty()) {
+        if(isCollectModeActive)
+        {
+            Toast.makeText(ShowPickUpActivity.this, "Please finish selection mode first", Toast.LENGTH_LONG).show();
+            return ;
+        }
+        for (int quantity:
+             pickupItemQuantityMap.values()) {
+            if(quantity!=0)
+            {
+                Toast.makeText(ShowPickUpActivity.this, "Make sure that you picked the right amount for each item", Toast.LENGTH_LONG).show();
+                return ;
+            }
+        }
             order.setStatus(OrderType.PICKED_UP);
-            order.setCollectedBy(MyUser.getInstance().getDocumentId());
+            order.setCollectedBy(MyUser.getInstance().getUser().getUserId());
             FirebaseShowPickUp.updateOrder(order, new FirebaseShowPickUp.FirestoreCallback() {
                 @Override
                 public void onSuccess() {
-                    FirebaseShowPickUp.removeUserPickup(MyUser.getInstance().getDocumentId(), order.getOrderId(), new FirebaseShowPickUp.FirestoreCallback() {
+                    FirebaseShowPickUp.removeUserPickup(MyUser.getInstance().getUser().getUserId(), order.getOrderId(), new FirebaseShowPickUp.FirestoreCallback() {
                         @Override
                         public void onSuccess() {
-                            for (PickupItem pickupItem : pickupItemLocationMap.keySet()) {
-                                updateItemQuantity(pickupItem, pickupItemLocationMap.get(pickupItem));
+                            for (PickupItem pickupItem : order.getPickupItems()) {
+                                    updateItemQuantity(pickupItem);
                             }
                             Toast.makeText(ShowPickUpActivity.this, "Collected successfully", Toast.LENGTH_SHORT).show();
-                            Intent intent = new Intent(ShowPickUpActivity.this, OrdersActivity.class);
-                            startActivity(intent);
                             finish();
                         }
 
@@ -396,9 +342,7 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
                     // Handle failure to update order status
                 }
             });
-        } else {
-            Toast.makeText(this, "Please collect all items before accepting.", Toast.LENGTH_SHORT).show();
-        }
+
     }
 
     private void handleDenyButtonClick() {
@@ -406,10 +350,10 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
         FirebaseShowPickUp.updateOrder(order, new FirebaseShowPickUp.FirestoreCallback() {
             @Override
             public void onSuccess() {
-                FirebaseShowPickUp.removeUserPickup(MyUser.getInstance().getDocumentId(), order.getOrderId(), new FirebaseShowPickUp.FirestoreCallback() {
+                FirebaseShowPickUp.removeUserPickup(MyUser.getInstance().getUser().getUserId(), order.getOrderId(), new FirebaseShowPickUp.FirestoreCallback() {
                     @Override
                     public void onSuccess() {
-                        Intent intent = new Intent(ShowPickUpActivity.this, OrdersActivity.class);
+                        Intent intent = new Intent(ShowPickUpActivity.this, PickupOrdersActivity.class);
                         startActivity(intent);
                         finish();
                     }
@@ -428,32 +372,39 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
         });
     }
 
-    private void updateItemQuantity(PickupItem pickupItem, LatLng location) {
+    private void updateItemQuantity(PickupItem pickupItem) {
         FirebaseShowPickUp.fetchItem(pickupItem.getBarcode() + "_" + pickupItem.getName(), item -> {
-            for (ItemWarehouse itemWarehouse : item.getItemWarehouses()) {
-                if (itemWarehouse.getWarehouseName().equals(order.getSelectedWarehouse())
-                        && itemWarehouse.getLocation().toLatLng().equals(location)) {
-                    itemWarehouse.setQuantity(itemWarehouse.getQuantity() - pickupItem.getQuantity());
-                    item.setTotalQuantity(item.getTotalQuantity() - pickupItem.getQuantity());
-                    item.setRequestedAmount(item.getRequestedAmount() - pickupItem.getQuantity());
-                    FirebaseShowPickUp.updateItem(item, new FirebaseShowPickUp.FirestoreCallback() {
-                        @Override
-                        public void onSuccess() {
-                            // Item quantity updated
-                        }
+            Iterator<ItemWarehouse> iterator = item.getItemWarehouses().iterator();
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            // Failed to update item quantity
-                        }
-                    });
-                    break;
+            while (iterator.hasNext()) {
+                ItemWarehouse warehouse = iterator.next();
+                int newQuantity = itemWarehouseMarkerQuantityMap.getOrDefault(warehouse, -1);
+
+                if (newQuantity == -1) {
+                    warehouse.setQuantity(warehouse.getQuantity());
+                } else {
+                    int updatedQuantity = warehouse.getQuantity() - newQuantity;
+                    if (updatedQuantity <= 0) {
+                        // Remove the warehouse from the list if the quantity reaches zero or below
+                        iterator.remove();
+                    } else {
+                        warehouse.setQuantity(updatedQuantity);
+                    }
                 }
             }
-        });
-    }
+                item.setTotalQuantity(item.getTotalQuantity() - pickupItem.getQuantity());
+                item.setRequestedAmount(item.getRequestedAmount() - pickupItem.getQuantity());
+                FirebaseShowPickUp.updateItem(item, new FirebaseShowPickUp.FirestoreCallback() {
+                    @Override
+                    public void onSuccess() {
+                        // Item quantity updated
+                    }
 
-    private interface LocationCallback {
-        void onLocationFetched(List<ItemWarehouse> locations);
+                    @Override
+                    public void onFailure(Exception e) {
+                        // Failed to update item quantity
+                    }
+                });
+        });
     }
 }

@@ -1,7 +1,7 @@
 package com.mywarehouse.mywarehouse.Firebase;
 
 import com.google.firebase.firestore.DocumentReference;
-import com.google.firebase.firestore.FirebaseFirestore;
+
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.mywarehouse.mywarehouse.Enums.LogType;
 import com.mywarehouse.mywarehouse.Enums.OrderType;
@@ -10,13 +10,14 @@ import com.mywarehouse.mywarehouse.Models.MyLog;
 import com.mywarehouse.mywarehouse.Models.Order;
 import com.mywarehouse.mywarehouse.Models.PickupItem;
 import com.mywarehouse.mywarehouse.Models.User;
+import com.mywarehouse.mywarehouse.Utilities.MyUser;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
-public class FirebaseCheckout {
+public class FirebaseCheckout extends FirebaseManager{
 
     public interface CheckoutCallback {
         void onSuccess(String orderId);
@@ -28,7 +29,7 @@ public class FirebaseCheckout {
         void onFailure(Exception e);
     }
 
-    public static void fetchItems(FirebaseFirestore db, List<ItemOrder> itemOrderList, ItemsCallback callback) {
+    public static void fetchItems(List<ItemOrder> itemOrderList, ItemsCallback callback) {
         db.collection("items")
                 .get()
                 .addOnCompleteListener(task -> {
@@ -62,7 +63,7 @@ public class FirebaseCheckout {
                 });
     }
 
-    public static void placeOrder(FirebaseFirestore db, List<DocumentReference> itemsToUpdate, List<ItemOrder> itemOrderList, String createdBy, CheckoutCallback callback) {
+    public static void placeOrder(List<DocumentReference> itemsToUpdate, List<ItemOrder> itemOrderList, String createdBy, CheckoutCallback callback) {
         List<PickupItem> pickupItems = new ArrayList<>();
         for (ItemOrder itemOrder : itemOrderList) {
             PickupItem pickupItem = new PickupItem(itemOrder.getName(), itemOrder.getBarcode(), itemOrder.getSelectedQuantity());
@@ -95,7 +96,7 @@ public class FirebaseCheckout {
                 });
     }
 
-    public static void saveOrderForUser(FirebaseFirestore db, String userDocumentId, String orderId, CheckoutCallback callback) {
+    public static void saveOrderForUser(String userDocumentId, String orderId, CheckoutCallback callback) {
         if (userDocumentId == null || userDocumentId.isEmpty()) {
             callback.onFailure(new IllegalArgumentException("User not logged in or user document ID not set"));
             return;
@@ -106,6 +107,7 @@ public class FirebaseCheckout {
         userRef.get().addOnSuccessListener(documentSnapshot -> {
             if (documentSnapshot.exists()) {
                 User user = documentSnapshot.toObject(User.class);
+                MyUser.getInstance().setUser(user);
                 if (user != null) {
                     List<String> userOrders = user.getOrders();
                     if (userOrders == null) {

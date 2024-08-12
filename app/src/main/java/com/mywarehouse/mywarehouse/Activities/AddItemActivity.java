@@ -27,6 +27,7 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
@@ -218,6 +219,7 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
         }
 
         Marker marker = map.addMarker(new MarkerOptions().position(latLng));
+        marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_box));
         markers.add(marker);
 
         String warehouseName = warehouseList.get(spinnerWarehouses.getSelectedItemPosition()).getName();
@@ -269,10 +271,6 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
             by = tempY;
         }
 
-        // Check if the point is outside the vertical range of the segment
-        if (py == ay || py == by) {
-            py += 0.00000001;
-        }
 
         if (py < ay || py > by || px > Math.max(ax, bx)) {
             return false;
@@ -390,7 +388,7 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
 
         String documentId = barcode + "_" + name;
 
-        FirebaseAddItem.checkDocumentExists(db, documentId, exists -> {
+        FirebaseAddItem.checkDocumentExists(documentId, exists -> {
             if (!exists) {
                 saveItem(barcode, name, description, supplier);
             } else {
@@ -408,16 +406,18 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
         }
 
         Date currentDate = new Date();
-        Item item = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, 0);
+        Item item = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, 0,false);
         String documentId = barcode + "_" + name;
 
-        FirebaseAddItem.saveItemToFirestore(db, item, documentId, new FirebaseAddItem.FirestoreCallback() {
+        FirebaseAddItem.saveItemToFirestore( item, documentId, new FirebaseAddItem.FirestoreCallback() {
             @Override
             public void onSuccess() {
                 Toast.makeText(AddItemActivity.this, "Item saved", Toast.LENGTH_SHORT).show();
                 imageAdapter.setItemId(documentId);
                 saveLog(item, currentDate);
                 doneSuccessfully = true;
+                intent = new Intent(AddItemActivity.this, InventoryActivity.class);
+                startActivity(intent);
                 finish();
             }
 
@@ -437,7 +437,7 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
     }
 
     private void saveLog(Item item, Date date) {
-        String invokedBy = MyUser.getInstance().getName();
+        String invokedBy = MyUser.getInstance().getUser().getName();
         StringBuilder notes = new StringBuilder();
         notes.append(item.getTotalQuantity()).append(" of the item ").append(item.getName()).append(" has been added \n");
         for (ItemWarehouse itemWarehouse : item.getItemWarehouses()) {
@@ -445,7 +445,7 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
         }
         MyLog myLog = new MyLog("Item creation", date, notes.toString(), invokedBy, LogType.ITEM_CREATION);
 
-        FirebaseAddItem.saveLog(db, myLog, new FirebaseAddItem.FirestoreCallback() {
+        FirebaseAddItem.saveLog(myLog, new FirebaseAddItem.FirestoreCallback() {
             @Override
             public void onSuccess() {
                 // Log saved successfully
@@ -458,7 +458,7 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
         });
     }
     private void loadWarehouses() {
-        FirebaseAddItem.fetchWarehouses(db, warehouseList -> {
+        FirebaseAddItem.fetchWarehouses(warehouseList -> {
             if (warehouseList == null || warehouseList.isEmpty()) {
                 Toast.makeText(this, "Add new Warehouse first", Toast.LENGTH_SHORT).show();
                 Intent intent = new Intent(AddItemActivity.this, InventoryActivity.class);
@@ -486,7 +486,7 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
             return;
         }
         PolygonOptions polygonOptions = new PolygonOptions();
-        List<LatLng> sortedPoints = sortPoints(warehouse.getPoints());
+        List<LatLng> sortedPoints = warehouse.getPoints();
         for (LatLng point : sortedPoints) {
             polygonOptions.add(point);
         }
@@ -508,41 +508,6 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
         return new LatLng(lat / sortedPoints.size(), lng / sortedPoints.size());
     }
 
-    public List<LatLng> sortPoints(List<LatLng> points) {
-        if (points.size() != 4) {
-            throw new IllegalArgumentException("There must be exactly 4 points.");
-        }
-
-        // Find the bottom-left point
-        LatLng bottomLeft = Collections.min(points, new Comparator<LatLng>() {
-            @Override
-            public int compare(LatLng p1, LatLng p2) {
-                if (p1.latitude != p2.latitude) {
-                    return Double.compare(p1.latitude, p2.latitude);
-                } else {
-                    return Double.compare(p1.longitude, p2.longitude);
-                }
-            }
-        });
-
-        // Remove the bottom-left point from the list
-        points.remove(bottomLeft);
-
-        // Sort the remaining points based on their positions relative to the bottom-left point
-        points.sort(new Comparator<LatLng>() {
-            @Override
-            public int compare(LatLng p1, LatLng p2) {
-                double angle1 = Math.atan2(p1.latitude - bottomLeft.latitude, p1.longitude - bottomLeft.longitude);
-                double angle2 = Math.atan2(p2.latitude - bottomLeft.latitude, p2.longitude - bottomLeft.longitude);
-                return Double.compare(angle1, angle2);
-            }
-        });
-
-        // Add the bottom-left point back to the beginning of the list
-        points.add(0, bottomLeft);
-
-        return points;
-    }
     private void openFileChooser() {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
         intent.setType("image/*");

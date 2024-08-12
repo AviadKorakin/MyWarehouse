@@ -1,10 +1,11 @@
 package com.mywarehouse.mywarehouse.Firebase;
 
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.firestore.FirebaseFirestore;
-import com.mywarehouse.mywarehouse.Models.User;
 
-public class FirebaseLogin {
+import com.mywarehouse.mywarehouse.Models.User;
+import com.mywarehouse.mywarehouse.Utilities.MyUser;
+
+public class FirebaseLogin extends FirebaseManager {
 
     public interface FirestoreCallback {
         void onSuccess();
@@ -28,11 +29,11 @@ public class FirebaseLogin {
     }
 
     public static void fetchUserRole(String userId, UserCallback callback) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
         db.collection("users").document(userId).get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful() && task.getResult() != null) {
                         User user = task.getResult().toObject(User.class);
+                        MyUser.getInstance().setUser(user);
                         callback.onCallback(user);
                     }
                 });

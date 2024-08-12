@@ -30,15 +30,14 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polygon;
 import com.google.android.gms.maps.model.PolygonOptions;
-import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
-import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 
@@ -51,14 +50,11 @@ import com.mywarehouse.mywarehouse.Models.Warehouse;
 import com.mywarehouse.mywarehouse.R;
 import com.mywarehouse.mywarehouse.Utilities.CustomNestedScrollView;
 import com.mywarehouse.mywarehouse.Utilities.MyUser;
-import com.mywarehouse.mywarehouse.Utilities.NavigationBarManager;
 
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -73,7 +69,6 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
     private CustomNestedScrollView customNestedScrollView;
     private RecyclerView recyclerImages,recyclerWarehouses;;
     private WarehouseAdapter warehouseAdapter;
-    private BottomNavigationView bottomNavigationView;
     private Spinner spinnerWarehouse;
     private Intent intent = null;
     private ImageAdapter imageAdapter;
@@ -105,7 +100,8 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             currentItem = getIntent().getParcelableExtra("item");
             // Assuming you pass documentId as well
             if (currentItem != null) {
-                getDocumentId(currentItem);
+                documentId = currentItem.getBarcode() + "_" + currentItem.getName();
+                checkIfItemIsBeingUpdated();
             }
         }
 
@@ -137,7 +133,6 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
         buttonCaptureImage = findViewById(R.id.button_capture_image);
         recyclerImages = findViewById(R.id.recycler_images);
         recyclerWarehouses = findViewById(R.id.recycler_warehouses);
-        bottomNavigationView = findViewById(R.id.bottom_navigation);
         spinnerWarehouse = findViewById(R.id.spinner_warehouse);
         customNestedScrollView = findViewById(R.id.custom_nested_scroll_view);
 
@@ -169,35 +164,6 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             }
         });
 
-        NavigationBarManager.getInstance().setupBottomNavigationView(bottomNavigationView, this);
-
-        bottomNavigationView.setSelectedItemId(R.id.navigation_inventory);
-        bottomNavigationView.setOnItemSelectedListener(item -> {
-            if (imagesToUploadCount == imagesUploadedCount) {
-                int id = item.getItemId();
-                if (id == R.id.navigation_inventory) {
-                    intent = new Intent(this, InventoryActivity.class);
-                } else if (id == R.id.navigation_account) {
-                    intent = new Intent(this, AccountActivity.class);
-                } else if (id == R.id.navigation_reports) {
-                    intent = new Intent(this, ReportsActivity.class);
-                } else if (id == R.id.navigation_orders) {
-                    intent = new Intent(this, OrdersActivity.class);
-                } else if (id == R.id.navigation_home) {
-                    intent = new Intent(this, HomeActivity.class);
-                }
-
-                if (intent != null) {
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-                    startActivity(intent);
-                    finish();
-                }
-                return true;
-            } else {
-                Toast.makeText(this, "Please wait for all images to be uploaded", Toast.LENGTH_SHORT).show();
-                return true;
-            }
-        });
 
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map_fragment);
         assert mapFragment != null;
@@ -232,6 +198,7 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             if(markers.isEmpty()) {
                 for (ItemWarehouse itemWarehouse : itemWarehouseList) {
                     Marker marker = map.addMarker(new MarkerOptions().position(itemWarehouse.getLocation().toLatLng()));
+                    marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_box));
                     markers.add(marker);
                 }
             }
@@ -282,6 +249,7 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             if(markers.isEmpty()) {
                 for (ItemWarehouse itemWarehouse : itemWarehouseList) {
                     Marker marker = map.addMarker(new MarkerOptions().position(itemWarehouse.getLocation().toLatLng()));
+                    marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_box));
                     markers.add(marker);
                 }
             }
@@ -307,6 +275,7 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
         }
 
         Marker marker = map.addMarker(new MarkerOptions().position(latLng));
+        marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_box));
         markers.add(marker);
 
         String warehouseName = warehouseList.get(spinnerWarehouse.getSelectedItemPosition()).getName();
@@ -359,6 +328,28 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             }
         }
     }
+    private void checkIfItemIsBeingUpdated() {
+
+            if (currentItem != null && currentItem.isOnUpdate()) {
+                Toast.makeText(UpdateItemBundledActivity.this, "This item is currently being updated by someone else.", Toast.LENGTH_SHORT).show();
+                finish();
+            } else {
+                // Proceed with activity setup
+                getDocumentId(currentItem);
+                FirebaseUpdateItemBundled.updateIsOnUpdateField(documentId, true, new FirebaseUpdateItemBundled.FirestoreCallback() {
+                    @Override
+                    public void onSuccess() {
+
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        Toast.makeText(UpdateItemBundledActivity.this, "Failed to update on update field", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+    }
+
 
     private final ActivityResultLauncher<Intent> captureImageFromCamera = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -367,7 +358,6 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
                     File f = new File(currentPhotoPath);
                     Uri imageUri = Uri.fromFile(f);
                     imageAdapter.addDefaultImage(UUID.randomUUID().toString(), Uri.parse("android.resource://" + getPackageName() + "/" + R.drawable.loading_gif)); // Add default image with unique ID
-                    bottomNavigationView.setVisibility(View.INVISIBLE);
                     imagesToUploadCount++;
                     uploadImageToFirebase(imageUri, imageAdapter.getLastItemId());
                 }
@@ -395,9 +385,6 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
                         imagesUploadedCount++;
                         addedImages.add(uri.toString());
                         imageAdapter.updateImageUri(imageId, uri, uri.toString());
-                        if (imagesToUploadCount == imagesUploadedCount) {
-                            bottomNavigationView.setVisibility(View.VISIBLE);
-                        }
                     }))
                     .addOnFailureListener(e -> {
                         Toast.makeText(this, "Failed to upload image: " + e.getMessage(), Toast.LENGTH_SHORT).show();
@@ -442,16 +429,16 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             builder.setView(dialogView)
                     .setPositiveButton("Yes", (dialog, which) -> {
                         Date currentDate = new Date();
-                        Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, currentItem.getRequestedAmount());
+                        Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, currentItem.getRequestedAmount(),false);
 
-                        FirebaseUpdateItemBundled.saveLog(updatedItem, currentItem, MyUser.getInstance().getName(), new FirebaseUpdateItemBundled.FirestoreCallback() {
+                        FirebaseUpdateItemBundled.saveLog(updatedItem, currentItem, MyUser.getInstance().getUser().getName(), new FirebaseUpdateItemBundled.FirestoreCallback() {
                             @Override
                             public void onSuccess() {
                                 FirebaseUpdateItemBundled.saveItem(documentId, updatedItem, new FirebaseUpdateItemBundled.FirestoreCallback() {
                                     @Override
                                     public void onSuccess() {
                                         Toast.makeText(UpdateItemBundledActivity.this, "Item saved", Toast.LENGTH_SHORT).show();
-                                        FirebaseUpdateItemBundled.saveOutOfStockLog(updatedItem.getName(), updatedItem.getBarcode(), currentDate, MyUser.getInstance().getName(), new FirebaseUpdateItemBundled.FirestoreCallback() {
+                                        FirebaseUpdateItemBundled.saveOutOfStockLog(updatedItem.getName(), updatedItem.getBarcode(), currentDate, MyUser.getInstance().getUser().getName(), new FirebaseUpdateItemBundled.FirestoreCallback() {
                                             @Override
                                             public void onSuccess() {
                                                 // Log saved successfully
@@ -488,9 +475,9 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             alertDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(ContextCompat.getColor(this, R.color.white));
         } else {
             Date currentDate = new Date();
-            Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, currentItem.getRequestedAmount());
+            Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, currentItem.getRequestedAmount(),false);
 
-            FirebaseUpdateItemBundled.saveLog(updatedItem, currentItem, MyUser.getInstance().getName(), new FirebaseUpdateItemBundled.FirestoreCallback() {
+            FirebaseUpdateItemBundled.saveLog(updatedItem, currentItem, MyUser.getInstance().getUser().getName(), new FirebaseUpdateItemBundled.FirestoreCallback() {
                 @Override
                 public void onSuccess() {
                     FirebaseUpdateItemBundled.saveItem(documentId, updatedItem, new FirebaseUpdateItemBundled.FirestoreCallback() {
@@ -581,7 +568,7 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             return;
         }
         PolygonOptions polygonOptions = new PolygonOptions();
-        List<LatLng> sortedPoints = sortPoints(warehouse.getPoints());
+        List<LatLng> sortedPoints = warehouse.getPoints();
         for (LatLng point : sortedPoints) {
             polygonOptions.add(point);
         }
@@ -602,44 +589,8 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
         return new LatLng(lat / sortedPoints.size(), lng / sortedPoints.size());
     }
 
-    public List<LatLng> sortPoints(List<LatLng> points) {
-        if (points.size() != 4) {
-            throw new IllegalArgumentException("There must be exactly 4 points.");
-        }
-
-        // Find the bottom-left point
-        LatLng bottomLeft = Collections.min(points, new Comparator<LatLng>() {
-            @Override
-            public int compare(LatLng p1, LatLng p2) {
-                if (p1.latitude != p2.latitude) {
-                    return Double.compare(p1.latitude, p2.latitude);
-                } else {
-                    return Double.compare(p1.longitude, p2.longitude);
-                }
-            }
-        });
-
-        // Remove the bottom-left point from the list
-        points.remove(bottomLeft);
-
-        // Sort the remaining points based on their positions relative to the bottom-left point
-        points.sort(new Comparator<LatLng>() {
-            @Override
-            public int compare(LatLng p1, LatLng p2) {
-                double angle1 = Math.atan2(p1.latitude - bottomLeft.latitude, p1.longitude - bottomLeft.longitude);
-                double angle2 = Math.atan2(p2.latitude - bottomLeft.latitude, p2.longitude - bottomLeft.longitude);
-                return Double.compare(angle1, angle2);
-            }
-        });
-
-        // Add the bottom-left point back to the beginning of the list
-        points.add(0, bottomLeft);
-
-        return points;
-    }
     private void loadWarehouses() {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
-        FirebaseUpdateItemBundled.fetchWarehouses(db, warehouseList -> {
+        FirebaseUpdateItemBundled.fetchWarehouses(warehouseList -> {
             if (warehouseList != null) {
                 this.warehouseList.clear();
                 this.warehouseList.addAll(warehouseList);
@@ -685,7 +636,12 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
         }
         urls.clear();
     }
+    @Override
+    protected  void onPause() {
 
+        super.onPause();
+        finish();
+    }
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -695,6 +651,19 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
                     deleteImageFromFirebase(addedImages);
                     Toast.makeText(this, "Images deleted", Toast.LENGTH_SHORT).show();
                 }
+            }
+            if(documentId!=null) {
+                FirebaseUpdateItemBundled.updateIsOnUpdateField(documentId, false, new FirebaseUpdateItemBundled.FirestoreCallback() {
+                    @Override
+                    public void onSuccess() {
+
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        Toast.makeText(UpdateItemBundledActivity.this, "Failed to update on update field", Toast.LENGTH_SHORT).show();
+                    }
+                });
             }
         }
     }

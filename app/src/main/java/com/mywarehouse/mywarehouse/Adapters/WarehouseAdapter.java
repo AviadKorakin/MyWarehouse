@@ -9,6 +9,8 @@ import android.widget.EditText;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.widget.AppCompatEditText;
+import androidx.appcompat.widget.AppCompatTextView;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.textfield.TextInputEditText;
@@ -70,9 +72,9 @@ public class WarehouseAdapter extends RecyclerView.Adapter<WarehouseAdapter.Ware
     }
 
     public static class WarehouseViewHolder extends RecyclerView.ViewHolder {
-        TextView warehouseName;
-        TextView location;
-        EditText quantity;
+        AppCompatTextView warehouseName;
+        AppCompatTextView location;
+        AppCompatEditText quantity;
 
         public WarehouseViewHolder(@NonNull View itemView) {
             super(itemView);

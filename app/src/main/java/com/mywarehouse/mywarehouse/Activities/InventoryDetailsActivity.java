@@ -2,7 +2,6 @@ package com.mywarehouse.mywarehouse.Activities;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.os.Handler;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.widget.Toast;
@@ -17,8 +16,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.textfield.TextInputEditText;
-import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.gson.Gson;
 import com.journeyapps.barcodescanner.ScanContract;
 import com.journeyapps.barcodescanner.ScanOptions;
 import com.mywarehouse.mywarehouse.Adapters.InventoryAdapter;
@@ -31,8 +28,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class InventoryDetailsActivity extends AppCompatActivity {
 
@@ -44,11 +39,6 @@ public class InventoryDetailsActivity extends AppCompatActivity {
     private AppCompatImageButton buttonScanBarcode;
     private Map<String, Item> itemMap; // Map to store items with document ID as the key
     private Map<String, List<Item>> queryCache; // Map to store query results
-    private FirebaseFirestore db;
-    private Intent intent;
-    private Handler handler;
-    private Runnable fetchDataRunnable;
-    private ExecutorService executorService;
 
     private final ActivityResultLauncher<ScanOptions> barcodeLauncher = registerForActivityResult(new ScanContract(), result -> {
         if (result.getContents() == null) {
@@ -57,14 +47,10 @@ public class InventoryDetailsActivity extends AppCompatActivity {
             searchInput.setText(result.getContents());
         }
     });
+
     private final ActivityResultLauncher<Intent> updateItemLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
-                if (result.getResultCode() == RESULT_CANCELED) {
-                    // Refresh the data after returning from UpdateItemBundledActivity
-                    firstFetchData();
-                    inventoryAdapter.notifyDataSetChanged();
-                }
             }
     );
 
@@ -73,16 +59,12 @@ public class InventoryDetailsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_inventory_details);
         overridePendingTransition(R.anim.dark_screen, R.anim.light_screen);
-        db = FirebaseFirestore.getInstance();
-        handler = new Handler();
-        executorService = Executors.newSingleThreadExecutor();
 
         findViews();
         initViews();
         setupSearch();
         setupNavigationBar();
-        firstFetchData();
-        fetchData();
+        setupRealtimeListener();  // Set up the real-time listener
     }
 
     private void findViews() {
@@ -101,11 +83,7 @@ public class InventoryDetailsActivity extends AppCompatActivity {
             intent.putExtra("item", item);
             updateItemLauncher.launch(intent);
         });
-        AppCompatImageButton refreshButton = findViewById(R.id.refresh_button);
-        refreshButton.setOnClickListener(v -> {
 
-            firstFetchData();
-        });
 
         recyclerViewItems.setLayoutManager(new LinearLayoutManager(this));
         recyclerViewItems.setAdapter(inventoryAdapter);
@@ -116,7 +94,6 @@ public class InventoryDetailsActivity extends AppCompatActivity {
             options.setOrientationLocked(true);
             barcodeLauncher.launch(options);
         });
-
     }
 
     private void setupSearch() {
@@ -165,63 +142,27 @@ public class InventoryDetailsActivity extends AppCompatActivity {
         inventoryAdapter.updateItems(items);
     }
 
-    private void fetchData() {
-        fetchDataRunnable = () -> {
-            if (!executorService.isShutdown()) {
-                FirebaseInventory.fetchItems(db, new FirebaseInventory.InventoryCallback() {
-                    @Override
-                    public void onCallback(List<Item> itemList) {
-                        itemMap.clear();
-                        for (Item item : itemList) {
-                            itemMap.put(item.getBarcode() + "_" + item.getName(), item);
-                        }
-                        queryCache.clear(); // Clear the query cache
-                        updateItemList(itemList);
-                        handler.postDelayed(() -> {
-                            if (!executorService.isShutdown()) {
-                                executorService.execute(fetchDataRunnable);
-                            }
-                        }, 10000); // Fetch data again after 10 seconds
-                    }
-
-                    @Override
-                    public void onError(Exception e) {
-                        Toast.makeText(InventoryDetailsActivity.this, "Error fetching items", Toast.LENGTH_SHORT).show();
-                    }
-                });
-            }
-        };
-        executorService.execute(fetchDataRunnable); // Start the initial fetch
-    }
-
-
-    private void firstFetchData() {
-        FirebaseInventory.fetchItems(db, new FirebaseInventory.InventoryCallback() {
+    private void setupRealtimeListener() {
+        FirebaseInventory.listenToItems(new FirebaseInventory.InventoryCallback() {
             @Override
             public void onCallback(List<Item> itemList) {
                 itemMap.clear();
                 for (Item item : itemList) {
                     itemMap.put(item.getBarcode() + "_" + item.getName(), item);
                 }
+                queryCache.clear(); // Clear the query cache
                 updateItemList(itemList);
-                searchItems("");
             }
 
             @Override
             public void onError(Exception e) {
-                Toast.makeText(InventoryDetailsActivity.this, "Error fetching items", Toast.LENGTH_SHORT).show();
+                Toast.makeText(InventoryDetailsActivity.this, "Error listening to items", Toast.LENGTH_SHORT).show();
             }
         });
     }
+
     private void setupNavigationBar() {
         NavigationBarManager.getInstance().setupBottomNavigationView(bottomNavigationView, this);
-        NavigationBarManager.getInstance().setNavigation(bottomNavigationView,this,R.id.navigation_inventory);
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        handler.removeCallbacks(fetchDataRunnable); // Stop the handler when activity is destroyed
-        executorService.shutdownNow();// Shutdown the executor service when activity is destroyed
+        NavigationBarManager.getInstance().setNavigation(bottomNavigationView, this, R.id.navigation_inventory);
     }
 }

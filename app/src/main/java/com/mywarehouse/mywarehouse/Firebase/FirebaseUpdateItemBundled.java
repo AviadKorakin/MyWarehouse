@@ -7,14 +7,14 @@ import com.mywarehouse.mywarehouse.Models.Item;
 import com.mywarehouse.mywarehouse.Models.ItemWarehouse;
 import com.mywarehouse.mywarehouse.Models.MyLog;
 import com.mywarehouse.mywarehouse.Models.Warehouse;
-import com.mywarehouse.mywarehouse.Models.MyLatLng;
+
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
-public class FirebaseUpdateItemBundled {
+public class FirebaseUpdateItemBundled extends FirebaseManager {
 
     public interface FirestoreCallback {
         void onSuccess();
@@ -44,13 +44,14 @@ public class FirebaseUpdateItemBundled {
                 .addOnFailureListener(e -> callback.onCallback(null));
     }
 
-    public static void fetchWarehouses(FirebaseFirestore db, WarehousesCallback callback) {
+    public static void fetchWarehouses(WarehousesCallback callback) {
         db.collection("warehouses")
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
                     List<Warehouse> warehouseList = new ArrayList<>();
                     for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
                         Warehouse warehouse = document.toObject(Warehouse.class);
+                        warehouse.sortPoints();
                         warehouseList.add(warehouse);
                     }
                     callback.onCallback(warehouseList);
@@ -127,6 +128,13 @@ public class FirebaseUpdateItemBundled {
         FirebaseFirestore db = FirebaseFirestore.getInstance();
         db.collection("logs").document(logId).set(myLog)
                 .addOnSuccessListener(documentReference -> callback.onSuccess())
+                .addOnFailureListener(callback::onFailure);
+    }
+    public static void updateIsOnUpdateField(String documentId, boolean onUpdate, FirestoreCallback callback) {
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+        db.collection("items").document(documentId)
+                .update("onUpdate", onUpdate)
+                .addOnSuccessListener(aVoid -> callback.onSuccess())
                 .addOnFailureListener(callback::onFailure);
     }
 }

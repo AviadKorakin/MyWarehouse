@@ -30,6 +30,7 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
@@ -39,11 +40,9 @@ import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import com.journeyapps.barcodescanner.ScanContract;
 import com.journeyapps.barcodescanner.ScanOptions;
 import com.mywarehouse.mywarehouse.Adapters.ImageAdapter;
@@ -61,11 +60,8 @@ import com.mywarehouse.mywarehouse.Utilities.MyUser;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -150,12 +146,7 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
 
         buttonSearch.setOnClickListener(v -> searchItem());
         buttonUpdateItem.setOnClickListener(v -> checkAndUpdateItem());
-        buttonReset.setOnClickListener(v -> {
-            enableFields(false);
-            depopulateFields();
-            deleteImageFromFirebase(addedImages);
-            isItemFound = false;
-        });
+        buttonReset.setOnClickListener(v -> resetButton());
 
         buttonScanBarcode.setOnClickListener(v -> {
             ScanOptions options = new ScanOptions();
@@ -219,7 +210,26 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
         warehouseAdapter = new WarehouseAdapter(itemWarehouseList);
         recyclerWarehouses.setAdapter(warehouseAdapter);
     }
+    private void resetButton()
+    {
+        if(documentId!=null && isItemFound) {
+            FirebaseUpdateItem.updateIsOnUpdateField(documentId, false, new FirebaseUpdateItem.FirestoreCallbackNoType() {
+                @Override
+                public void onSuccess() {
 
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    Toast.makeText(UpdateItemActivity.this, "Failed to update on update field", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
+        enableFields(false);
+        depopulateFields();
+        deleteImageFromFirebase(addedImages);
+        isItemFound = false;
+    }
     private void searchItem() {
         String barcode = inputBarcode.getText() != null ? inputBarcode.getText().toString().trim() : "";
         String name = inputName.getText() != null ? inputName.getText().toString().trim() : "";
@@ -235,6 +245,17 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
             public void onSuccess(Item item) {
                 currentItem = item;
                 isItemFound = true;
+                FirebaseUpdateItem.updateIsOnUpdateField(documentId, true, new FirebaseUpdateItem.FirestoreCallbackNoType() {
+                    @Override
+                    public void onSuccess() {
+
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        Toast.makeText(UpdateItemActivity.this, "Failed to update on update field", Toast.LENGTH_SHORT).show();
+                    }
+                });
                 // Check if the adapter is already set, if not, populateFields will be called after the adapter is set in loadWarehouses
                 if (spinnerWarehouse.getAdapter() != null) {
                     populateFields(currentItem);
@@ -261,6 +282,7 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
         if (map != null) {
             for (ItemWarehouse itemWarehouse : itemWarehouseList) {
                 Marker marker = map.addMarker(new MarkerOptions().position(itemWarehouse.getLocation().toLatLng()));
+                marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_box));
                 markers.add(marker);
             }
         }
@@ -290,7 +312,7 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
         buttonUpdateItem.setEnabled(enabled);
         buttonAttachImages.setEnabled(enabled);
         buttonCaptureImage.setEnabled(enabled);
-        buttonUpdateItem.setEnabled(enabled);
+        buttonUpdateItem.setEnabled(true);
         inputBarcode.setEnabled(!enabled);
         inputName.setEnabled(!enabled);
     }
@@ -330,6 +352,7 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
         }
 
         Marker marker = map.addMarker(new MarkerOptions().position(latLng));
+        marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_box));
         markers.add(marker);
 
         String warehouseName = warehouseList.get(spinnerWarehouse.getSelectedItemPosition()).getName();
@@ -430,6 +453,11 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
     }
 
     private void checkAndUpdateItem() {
+        if(!isItemFound)
+        {
+            Toast.makeText(this, "Please enter barcode and name and press on search", Toast.LENGTH_SHORT).show();
+            return;
+        }
         if (imagesToUploadCount != imagesUploadedCount) {
             Toast.makeText(this, "Images still uploading please wait", Toast.LENGTH_SHORT).show();
             return;
@@ -468,7 +496,7 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
             builder.setView(dialogView)
                     .setPositiveButton("Yes", (dialog, which) -> {
                         Date currentDate = new Date();
-                        Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, currentItem.getRequestedAmount());
+                        Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, currentItem.getRequestedAmount(),false);
                         saveLog(updatedItem, currentItem);
 
                         FirebaseUpdateItem.saveItem(documentId, updatedItem, new FirebaseUpdateItem.FirestoreCallback<Void>() {
@@ -496,7 +524,7 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
             alertDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(ContextCompat.getColor(this, R.color.white));
         } else {
             Date currentDate = new Date();
-            Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, currentItem.getRequestedAmount());
+            Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, currentItem.getRequestedAmount(),false);
             saveLog(updatedItem, currentItem);
 
             FirebaseUpdateItem.saveItem(documentId, updatedItem, new FirebaseUpdateItem.FirestoreCallback<Void>() {
@@ -525,7 +553,7 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
         return totalQuantity;
     }
     private void saveOutOfStockLog(String itemName, String barcode, Date date) {
-        String invokedBy = MyUser.getInstance().getName();
+        String invokedBy = MyUser.getInstance().getUser().getName();
         String notes = "Item " + itemName + " is out of stock because it was updated during a warehouse inventory check or it has run out due to orders.";
         MyLog myLog = new MyLog("Item out of stock", date, notes, invokedBy, LogType.OUT_OF_STOCK);
 
@@ -543,7 +571,7 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
     }
 
     private void saveLog(Item newItem, Item oldItem) {
-        String invokedBy = MyUser.getInstance().getName();
+        String invokedBy = MyUser.getInstance().getUser().getName();
         StringBuilder notes = new StringBuilder("Item " + newItem.getName() + " has been updated. Changes:\n");
 
         if (!newItem.getDescription().equals(oldItem.getDescription())) {
@@ -656,7 +684,7 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
             return;
         }
         PolygonOptions polygonOptions = new PolygonOptions();
-        List<LatLng> sortedPoints = sortPoints(warehouse.getPoints());
+        List<LatLng> sortedPoints = warehouse.getPoints();
         for (LatLng point : sortedPoints) {
             polygonOptions.add(point);
         }
@@ -677,41 +705,6 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
         return new LatLng(lat / sortedPoints.size(), lng / sortedPoints.size());
     }
 
-    public List<LatLng> sortPoints(List<LatLng> points) {
-        if (points.size() != 4) {
-            throw new IllegalArgumentException("There must be exactly 4 points.");
-        }
-
-        // Find the bottom-left point
-        LatLng bottomLeft = Collections.min(points, new Comparator<LatLng>() {
-            @Override
-            public int compare(LatLng p1, LatLng p2) {
-                if (p1.latitude != p2.latitude) {
-                    return Double.compare(p1.latitude, p2.latitude);
-                } else {
-                    return Double.compare(p1.longitude, p2.longitude);
-                }
-            }
-        });
-
-        // Remove the bottom-left point from the list
-        points.remove(bottomLeft);
-
-        // Sort the remaining points based on their positions relative to the bottom-left point
-        points.sort(new Comparator<LatLng>() {
-            @Override
-            public int compare(LatLng p1, LatLng p2) {
-                double angle1 = Math.atan2(p1.latitude - bottomLeft.latitude, p1.longitude - bottomLeft.longitude);
-                double angle2 = Math.atan2(p2.latitude - bottomLeft.latitude, p2.longitude - bottomLeft.longitude);
-                return Double.compare(angle1, angle2);
-            }
-        });
-
-        // Add the bottom-left point back to the beginning of the list
-        points.add(0, bottomLeft);
-
-        return points;
-    }
     private void loadWarehouses() {
         FirebaseUpdateItem.fetchWarehouses(new FirebaseUpdateItem.FirestoreCallback<List<Warehouse>>() {
             @Override
@@ -765,6 +758,12 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        resetButton();
+    }
+
+    @Override
     protected void onDestroy() {
         super.onDestroy();
         if (!isChangingConfigurations()) {
@@ -773,6 +772,19 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
                     deleteImageFromFirebase(addedImages);
                     Toast.makeText(this, "Images deleted", Toast.LENGTH_SHORT).show();
                 }
+            }
+            if(documentId!=null && isItemFound) {
+                FirebaseUpdateItem.updateIsOnUpdateField(documentId, false, new FirebaseUpdateItem.FirestoreCallbackNoType() {
+                    @Override
+                    public void onSuccess() {
+
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        Toast.makeText(UpdateItemActivity.this, "Failed to update on update field", Toast.LENGTH_SHORT).show();
+                    }
+                });
             }
         }
     }

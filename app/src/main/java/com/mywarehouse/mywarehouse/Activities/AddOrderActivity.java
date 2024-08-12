@@ -7,6 +7,7 @@ import android.text.TextWatcher;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.AppCompatImageButton;
@@ -16,7 +17,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.textfield.TextInputEditText;
-import com.google.firebase.firestore.FirebaseFirestore;
 import com.journeyapps.barcodescanner.ScanContract;
 import com.journeyapps.barcodescanner.ScanOptions;
 import com.mywarehouse.mywarehouse.Adapters.ItemOrderAdapter;
@@ -37,10 +37,7 @@ public class AddOrderActivity extends AppCompatActivity {
     private ItemOrderAdapter itemOrderAdapter;
     private List<ItemOrder> itemOrderList;
     private AppCompatImageButton buttonScanBarcode, buttonCart;
-    private FirebaseFirestore db;
     private int totalSelectedItems = 0;
-    private boolean shouldCancelFetch = false;
-    private Intent intent = null;
 
     private final ActivityResultLauncher<ScanOptions> barcodeLauncher = registerForActivityResult(new ScanContract(), result -> {
         if (result.getContents() == null) {
@@ -50,12 +47,24 @@ public class AddOrderActivity extends AppCompatActivity {
         }
     });
 
+    private final ActivityResultLauncher<Intent> checkoutLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK) {
+                    Intent intent = new Intent(AddOrderActivity.this, OrdersActivity.class);
+                    startActivity(intent);
+                    finish();
+                } else {
+                    Toast.makeText(AddOrderActivity.this, "Checkout canceled", Toast.LENGTH_SHORT).show();
+                }
+            }
+    );
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_order);
         overridePendingTransition(R.anim.dark_screen, R.anim.light_screen);
-        db = FirebaseFirestore.getInstance();
 
         searchInput = findViewById(R.id.search_input);
         recyclerViewItems = findViewById(R.id.recycler_view_items);
@@ -86,10 +95,6 @@ public class AddOrderActivity extends AppCompatActivity {
             }
         });
 
-        findViewById(R.id.refresh_button).setOnClickListener(v -> {
-            fetchData();
-            resetInCartCounter();
-        });
 
         buttonScanBarcode.setOnClickListener(v -> {
             ScanOptions options = new ScanOptions();
@@ -104,25 +109,21 @@ public class AddOrderActivity extends AppCompatActivity {
                 Intent intent = new Intent(AddOrderActivity.this, CheckoutActivity.class);
                 ArrayList<ItemOrder> selectedItems = getSelectedItems();
                 intent.putParcelableArrayListExtra("selectedItems", selectedItems);
-                startActivity(intent);
+                checkoutLauncher.launch(intent);
             } else {
                 Toast.makeText(this, "No items selected", Toast.LENGTH_SHORT).show();
             }
         });
 
-        fetchData();
+        listenToItemChanges();
 
         // Setup navigation bar
         NavigationBarManager.getInstance().setupBottomNavigationView(bottomNavigationView, this);
-        NavigationBarManager.getInstance().setNavigation(bottomNavigationView,this,R.id.navigation_orders);
+        NavigationBarManager.getInstance().setNavigation(bottomNavigationView, this, R.id.navigation_orders);
     }
 
-    private void fetchData() {
-        if (shouldCancelFetch) {
-            return; // Stop the fetch operation if the flag is set
-        }
-
-        FirebaseAddOrder.fetchItems(db, new FirebaseAddOrder.ItemsCallback() {
+    private void listenToItemChanges() {
+        FirebaseAddOrder.listenToItems(new FirebaseAddOrder.ItemsCallback() {
             @Override
             public void onItemsFetched(List<ItemOrder> items) {
                 itemOrderList.clear();
@@ -162,8 +163,4 @@ public class AddOrderActivity extends AppCompatActivity {
         return selectedItems;
     }
 
-    private void resetInCartCounter() {
-        totalSelectedItems = 0;
-        inCartCounter.setText(String.valueOf(totalSelectedItems));
-    }
 }

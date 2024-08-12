@@ -6,10 +6,10 @@ import android.text.TextUtils;
 import android.util.Patterns;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.splashscreen.SplashScreen;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
@@ -19,19 +19,18 @@ import com.mywarehouse.mywarehouse.Firebase.FirebaseLogin;
 import com.mywarehouse.mywarehouse.R;
 import com.mywarehouse.mywarehouse.Utilities.NavigationBarManager;
 import com.mywarehouse.mywarehouse.Utilities.MyUser;
-import com.mywarehouse.mywarehouse.Models.User;
 
 public class LoginActivity extends AppCompatActivity {
 
     private EditText emailInput, passwordInput;
     private Button loginButton, registerButton;
-    private TextView notRegisteredText;
 
     private FirebaseAuth mAuth;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        SplashScreen.installSplashScreen(this);
         setContentView(R.layout.activity_login);
         overridePendingTransition(R.anim.dark_screen, R.anim.light_screen);
 
@@ -60,7 +59,6 @@ public class LoginActivity extends AppCompatActivity {
         passwordInput = findViewById(R.id.password_input);
         loginButton = findViewById(R.id.login_button);
         registerButton = findViewById(R.id.register_button);
-        notRegisteredText = findViewById(R.id.not_registered_text);
     }
 
     private boolean validateFields() {
@@ -123,17 +121,11 @@ public class LoginActivity extends AppCompatActivity {
     private void fetchUserRole(String userId) {
         FirebaseLogin.fetchUserRole(userId, user -> {
             if (user != null) {
-                String role = user.getRole();
-                String name = user.getName();
-                if (role != null && name != null) {
-                    MyUser.getInstance().setName(name);
-                    MyUser.getInstance().setDocumentId(userId);
-                    Toast.makeText(LoginActivity.this, "Welcome " + name + ".", Toast.LENGTH_SHORT).show();
-                    navigateToRoleSpecificActivity(role);
-                } else {
-                    Toast.makeText(LoginActivity.this, "Role or name not found", Toast.LENGTH_SHORT).show();
+                    MyUser.getInstance().setUser(user);
+                    Toast.makeText(LoginActivity.this, "Welcome " + user.getName() + ".", Toast.LENGTH_SHORT).show();
+                    navigateToRoleSpecificActivity(user.getRole());
                 }
-            } else {
+             else {
                 Toast.makeText(LoginActivity.this, "User name or password is wrong", Toast.LENGTH_SHORT).show();
             }
         });

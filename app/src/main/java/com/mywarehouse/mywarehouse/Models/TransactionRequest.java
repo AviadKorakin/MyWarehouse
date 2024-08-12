@@ -12,16 +12,18 @@ public class TransactionRequest implements Parcelable {
     private String orderId;
     private String CreatedBy;
     private List<PickupItem> requestedItemsToMove;
+    private boolean onUpdate; // Added field
 
     public TransactionRequest() {
     }
 
-    public TransactionRequest(String requestId, String warehouse, String orderId, String createdBy, List<PickupItem> requestedItemsToMove) {
+    public TransactionRequest(String requestId, String warehouse, String orderId, String createdBy, List<PickupItem> requestedItemsToMove, boolean onUpdate) {
         this.requestId = requestId;
         Warehouse = warehouse;
         this.orderId = orderId;
         CreatedBy = createdBy;
         this.requestedItemsToMove = requestedItemsToMove;
+        this.onUpdate = onUpdate; // Initialize the new field
     }
 
     protected TransactionRequest(Parcel in) {
@@ -30,6 +32,7 @@ public class TransactionRequest implements Parcelable {
         orderId = in.readString();
         CreatedBy = in.readString();
         requestedItemsToMove = in.createTypedArrayList(PickupItem.CREATOR);
+        onUpdate = in.readByte() != 0; // Read the new field
     }
 
     public static final Creator<TransactionRequest> CREATOR = new Creator<TransactionRequest>() {
@@ -51,6 +54,7 @@ public class TransactionRequest implements Parcelable {
         dest.writeString(orderId);
         dest.writeString(CreatedBy);
         dest.writeTypedList(requestedItemsToMove);
+        dest.writeByte((byte) (onUpdate ? 1 : 0)); // Write the new field
     }
 
     @Override
@@ -96,5 +100,13 @@ public class TransactionRequest implements Parcelable {
 
     public void setRequestedItemsToMove(List<PickupItem> requestedItemsToMove) {
         this.requestedItemsToMove = requestedItemsToMove;
+    }
+
+    public boolean isOnUpdate() {
+        return onUpdate;
+    }
+
+    public void setOnUpdate(boolean onUpdate) {
+        this.onUpdate = onUpdate;
     }
 }

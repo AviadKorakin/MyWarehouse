@@ -19,13 +19,13 @@ public class Item implements Parcelable {
     private List<ItemWarehouse> itemWarehouses;
     private int requestedAmount;
     private boolean collapsed;
-
+    private boolean onUpdate;
 
     public Item() {
         // Default constructor for Firebase
     }
 
-    public Item(String barcode, String name, String description, int totalQuantity, List<String> imageUrls, boolean active, String supplier, Date lastModified, List<ItemWarehouse> itemWarehouses,int requestedAmount) {
+    public Item(String barcode, String name, String description, int totalQuantity, List<String> imageUrls, boolean active, String supplier, Date lastModified, List<ItemWarehouse> itemWarehouses, int requestedAmount, boolean onUpdate) {
         this.barcode = barcode;
         this.name = name;
         this.description = description;
@@ -35,8 +35,9 @@ public class Item implements Parcelable {
         this.supplier = supplier;
         this.lastModified = lastModified;
         this.itemWarehouses = itemWarehouses;
-        this.requestedAmount=requestedAmount;
+        this.requestedAmount = requestedAmount;
         this.collapsed = true;
+        this.onUpdate = onUpdate;
     }
 
     protected Item(Parcel in) {
@@ -49,8 +50,8 @@ public class Item implements Parcelable {
         supplier = in.readString();
         lastModified = new Date(in.readLong());
         itemWarehouses = in.createTypedArrayList(ItemWarehouse.CREATOR);
-        requestedAmount=in.readInt();
-
+        requestedAmount = in.readInt();
+        onUpdate = in.readByte() != 0;
     }
 
     public static final Creator<Item> CREATOR = new Creator<Item>() {
@@ -77,6 +78,7 @@ public class Item implements Parcelable {
         dest.writeLong(lastModified != null ? lastModified.getTime() : -1);
         dest.writeTypedList(itemWarehouses);
         dest.writeInt(requestedAmount);
+        dest.writeByte((byte) (onUpdate ? 1 : 0));
     }
 
     @Override
@@ -142,7 +144,6 @@ public class Item implements Parcelable {
         this.supplier = supplier;
     }
 
-
     public List<ItemWarehouse> getItemWarehouses() {
         return itemWarehouses;
     }
@@ -150,8 +151,13 @@ public class Item implements Parcelable {
     public void setItemWarehouses(List<ItemWarehouse> itemWarehouses) {
         this.itemWarehouses = itemWarehouses;
     }
+
     public boolean isCollapsed() {
         return collapsed;
+    }
+
+    public void setCollapsed(boolean collapsed) {
+        this.collapsed = collapsed;
     }
 
     public Date getLastModified() {
@@ -162,15 +168,29 @@ public class Item implements Parcelable {
         this.lastModified = lastModified;
     }
 
-    public void setCollapsed(boolean collapsed) {
-        this.collapsed = collapsed;
-    }
     public int getRequestedAmount() {
         return requestedAmount;
     }
 
     public void setRequestedAmount(int requestedAmount) {
         this.requestedAmount = requestedAmount;
+    }
+
+    public boolean isOnUpdate() {
+        return onUpdate;
+    }
+
+    public void setOnUpdate(boolean onUpdate) {
+        this.onUpdate = onUpdate;
+    }
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Item that = (Item) o;
+
+        if (!name.equals(that.name)) return false;
+        return barcode.equals(that.barcode);
     }
 
     @Override
@@ -183,8 +203,10 @@ public class Item implements Parcelable {
                 ", imageUrls=" + imageUrls +
                 ", active=" + active +
                 ", supplier='" + supplier + '\'' +
-                ", createdAt=" + lastModified +
+                ", lastModified=" + lastModified +
                 ", itemWarehouses=" + itemWarehouses +
+                ", requestedAmount=" + requestedAmount +
+                ", onUpdate=" + onUpdate +
                 '}';
     }
 }

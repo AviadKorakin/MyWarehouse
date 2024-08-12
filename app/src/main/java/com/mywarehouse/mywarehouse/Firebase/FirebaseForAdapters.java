@@ -1,9 +1,16 @@
 package com.mywarehouse.mywarehouse.Firebase;
 
 import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
+
 import com.google.firebase.firestore.FieldValue;
-import com.google.firebase.firestore.FirebaseFirestore;
+
+import com.google.firebase.firestore.FirebaseFirestoreException;
+import com.google.firebase.firestore.ListenerRegistration;
+
+import com.mywarehouse.mywarehouse.Enums.OrderType;
 import com.mywarehouse.mywarehouse.Models.Item;
+import com.mywarehouse.mywarehouse.Models.ItemWarehouse;
 import com.mywarehouse.mywarehouse.Models.Order;
 import com.mywarehouse.mywarehouse.Models.PickupItem;
 import com.mywarehouse.mywarehouse.Models.PickupItemWithImages;
@@ -11,9 +18,15 @@ import com.mywarehouse.mywarehouse.Models.TransactionRequest;
 import com.mywarehouse.mywarehouse.Models.User;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-public class FirebaseForAdapters {
+import java.util.concurrent.atomic.AtomicInteger;
+
+public class FirebaseForAdapters extends FirebaseManager {
+
+    private static Map<String, ListenerRegistration> itemListenersMap = new HashMap<>();
 
     public interface ItemCallback {
         void onCallback(Item item);
@@ -39,8 +52,11 @@ public class FirebaseForAdapters {
         void onFailure(Exception e);
     }
 
+    public interface ItemChangeListener {
+        void onItemChanged(Item updatedItem);
+    }
+
     public static void fetchItem(String documentId, ItemCallback callback) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
         db.collection("items").document(documentId).get().addOnCompleteListener(task -> {
             if (task.isSuccessful() && task.getResult() != null) {
                 Item item = task.getResult().toObject(Item.class);
@@ -49,15 +65,42 @@ public class FirebaseForAdapters {
         });
     }
 
+    public static void listenToItemChanges(String documentId, ItemChangeListener listener) {
+        if (itemListenersMap.containsKey(documentId)) {
+            // Listener already exists for this item, do nothing
+            return;
+        }
+
+        ListenerRegistration listenerRegistration = db.collection("items").document(documentId)
+                .addSnapshotListener((DocumentSnapshot snapshot, FirebaseFirestoreException e) -> {
+                    if (e != null) {
+                        return;
+                    }
+                    if (snapshot != null && snapshot.exists()) {
+                        Item updatedItem = snapshot.toObject(Item.class);
+                        listener.onItemChanged(updatedItem);
+                    }
+                });
+
+        itemListenersMap.put(documentId, listenerRegistration);
+    }
+
+    public static void removeAllItemChangeListeners() {
+        for (ListenerRegistration listener : itemListenersMap.values()) {
+            if (listener != null) {
+                listener.remove();  // Remove each listener
+            }
+        }
+        itemListenersMap.clear();  // Clear the map after removing all listeners
+    }
+
     public static void addUserPickup(String userId, String orderId, FirestoreCallback callback) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
         db.collection("users").document(userId).update("pickups", FieldValue.arrayUnion(orderId))
                 .addOnSuccessListener(aVoid -> callback.onSuccess())
                 .addOnFailureListener(callback::onFailure);
     }
 
     public static void createTransactionRequest(TransactionRequest request, FirestoreCallback callback) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
         DocumentReference documentReference = db.collection("transactionRequests").document();
         request.setRequestId(documentReference.getId());
         documentReference.set(request)
@@ -71,18 +114,23 @@ public class FirebaseForAdapters {
         for (PickupItem pickupItem : pickupItems) {
             String documentId = pickupItem.getBarcode() + "_" + pickupItem.getName();
             fetchItem(documentId, item -> {
-                PickupItemWithImages pickupItemWithImages = new PickupItemWithImages(pickupItem, item.getImageUrls());
-                pickupItemsWithImagesList.add(pickupItemWithImages);
+                if(item !=null) {
+                    PickupItemWithImages pickupItemWithImages;
+                    if (item.getImageUrls() == null)
+                        pickupItemWithImages = new PickupItemWithImages(pickupItem, new ArrayList<>());
+                    else
+                        pickupItemWithImages = new PickupItemWithImages(pickupItem, item.getImageUrls());
+                    pickupItemsWithImagesList.add(pickupItemWithImages);
 
-                if (pickupItemsWithImagesList.size() == pickupItems.size()) {
-                    callback.onCallback(pickupItemsWithImagesList);
+                    if (pickupItemsWithImagesList.size() == pickupItems.size()) {
+                        callback.onCallback(pickupItemsWithImagesList);
+                    }
                 }
             });
         }
     }
 
     public static void fetchOrder(String orderId, OrderCallback callback) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
         db.collection("orders").document(orderId).get().addOnCompleteListener(task -> {
             if (task.isSuccessful() && task.getResult() != null) {
                 Order order = task.getResult().toObject(Order.class);
@@ -94,7 +142,6 @@ public class FirebaseForAdapters {
     }
 
     public static void updateOrder(Order order, FirestoreCallback callback) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
         db.collection("orders").document(order.getOrderId())
                 .set(order)
                 .addOnSuccessListener(aVoid -> callback.onSuccess())
@@ -102,7 +149,6 @@ public class FirebaseForAdapters {
     }
 
     public static void deleteTransactionRequest(String requestId, FirestoreCallback callback) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
         db.collection("transactionRequests").document(requestId)
                 .delete()
                 .addOnSuccessListener(aVoid -> callback.onSuccess())
@@ -110,18 +156,54 @@ public class FirebaseForAdapters {
     }
 
     public static void removeUserPickup(String userId, String orderId, FirestoreCallback callback) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
         db.collection("users").document(userId).update("pickups", FieldValue.arrayRemove(orderId))
                 .addOnSuccessListener(aVoid -> callback.onSuccess())
                 .addOnFailureListener(callback::onFailure);
     }
 
-    public static void fetchUser(String userId, UserCallback callback) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
-        db.collection("users").document(userId).get().addOnCompleteListener(task -> {
-            if (task.isSuccessful() && task.getResult() != null) {
-                User user = task.getResult().toObject(User.class);
-                callback.onCallback(user);
+    public static void updateItemOnUpdateStatus(String documentId, boolean status, FirestoreCallback callback) {
+        db.collection("items").document(documentId).update("onUpdate", status)
+                .addOnSuccessListener(aVoid -> callback.onSuccess())
+                .addOnFailureListener(callback::onFailure);
+    }
+
+    public static void checkOrderAvailability(Order order, FirestoreCallback callback) {
+        fetchOrder(order.getOrderId(), new OrderCallback() {
+            @Override
+            public void onCallback(Order latestOrder) {
+                if (latestOrder != null && latestOrder.getStatus() == OrderType.IN_PROGRESS) {
+                    List<PickupItem> pickupItems = latestOrder.getPickupItems();
+                    int totalItems = pickupItems.size();
+                    AtomicInteger processedItems = new AtomicInteger(0);
+
+                    for (PickupItem pickupItem : pickupItems) {
+                        String documentId = pickupItem.getBarcode() + "_" + pickupItem.getName();
+                        fetchItem(documentId, item -> {
+                            int availableQuantity = 0;
+                            for (ItemWarehouse itemWarehouse : item.getItemWarehouses()) {
+                                if (itemWarehouse.getWarehouseName().equals(latestOrder.getSelectedWarehouse())) {
+                                    availableQuantity += itemWarehouse.getQuantity();
+                                }
+                            }
+
+                            if (availableQuantity < pickupItem.getQuantity()) {
+                                callback.onFailure(new Exception("Not enough quantity available for item: " + pickupItem.getName()));
+                                return;
+                            }
+
+                            if (processedItems.incrementAndGet() == totalItems) {
+                                callback.onSuccess();
+                            }
+                        });
+                    }
+                } else {
+                    callback.onFailure(new Exception("Order status has changed or order is not in progress"));
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                callback.onFailure(e);
             }
         });
     }

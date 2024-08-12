@@ -15,26 +15,34 @@ import androidx.appcompat.widget.AppCompatImageButton;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.mywarehouse.mywarehouse.Activities.RequestsActivity;
 import com.mywarehouse.mywarehouse.Enums.OrderType;
+import com.mywarehouse.mywarehouse.Firebase.FirebaseForAdapters;
+import com.mywarehouse.mywarehouse.Models.Item;
 import com.mywarehouse.mywarehouse.Models.ItemWarehouse;
 import com.mywarehouse.mywarehouse.Models.Order;
 import com.mywarehouse.mywarehouse.Models.PickupItem;
+import com.mywarehouse.mywarehouse.Models.PickupItemWithImages;
 import com.mywarehouse.mywarehouse.Models.TransactionRequest;
 import com.mywarehouse.mywarehouse.R;
-import com.mywarehouse.mywarehouse.Firebase.FirebaseForAdapters;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class TransactionRequestAdapter extends RecyclerView.Adapter<TransactionRequestAdapter.TransactionRequestViewHolder> {
 
     private Context context;
     private List<TransactionRequest> transactionRequestList;
+    private Map<String, Item> cachedItemsMap;  // Cache for fetched items
 
     public TransactionRequestAdapter(Context context, List<TransactionRequest> transactionRequestList) {
         this.context = context;
         this.transactionRequestList = transactionRequestList;
+        this.cachedItemsMap = new HashMap<>();  // Initialize the cache
     }
 
     @NonNull
@@ -49,22 +57,10 @@ public class TransactionRequestAdapter extends RecyclerView.Adapter<TransactionR
         TransactionRequest request = transactionRequestList.get(position);
         holder.orderId.setText(request.getOrderId());
         holder.warehouse.setText(request.getWarehouse());
+        holder.createdBy.setText(request.getCreatedBy());
 
-        // Fetch the user name from Firestore
-        FirebaseForAdapters.fetchUser(request.getCreatedBy(), user -> {
-            if (user != null) {
-                holder.createdBy.setText(user.getName());
-            } else {
-                holder.createdBy.setText(request.getCreatedBy()); // fallback
-            }
-        });
-
-        // Setup nested RecyclerView for items
-        FirebaseForAdapters.fetchPickupItemsWithImages(request.getRequestedItemsToMove(), pickupItemsWithImages -> {
-            PickupItemAdapter pickupItemAdapter = new PickupItemAdapter(context, pickupItemsWithImages);
-            holder.recyclerViewItems.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
-            holder.recyclerViewItems.setAdapter(pickupItemAdapter);
-        });
+        // Setup nested RecyclerView for items with real-time listeners
+        fetchPickupItems(holder.recyclerViewItems, request.getRequestedItemsToMove());
 
         holder.acceptButton.setOnClickListener(v -> acceptTransactionRequest(request));
         holder.denyButton.setOnClickListener(v -> denyTransactionRequest(request));
@@ -80,32 +76,108 @@ public class TransactionRequestAdapter extends RecyclerView.Adapter<TransactionR
         });
     }
 
-    @Override
-    public int getItemCount() {
-        return transactionRequestList.size();
+    private void fetchPickupItems(RecyclerView recyclerView, List<PickupItem> pickupItems) {
+        List<PickupItemWithImages> pickupItemsWithImagesList = new ArrayList<>();
+
+        for (PickupItem pickupItem : pickupItems) {
+            String itemKey = pickupItem.getBarcode() + "_" + pickupItem.getName();
+
+            if (cachedItemsMap.containsKey(itemKey)) {
+                Item cachedItem = cachedItemsMap.get(itemKey);
+                PickupItemWithImages pickupItemWithImages = new PickupItemWithImages(pickupItem, cachedItem.getImageUrls());
+                pickupItemsWithImagesList.add(pickupItemWithImages);
+                setItemChangeListener(itemKey);  // Set the real-time listener for the item
+
+                if (pickupItemsWithImagesList.size() == pickupItems.size()) {
+                    setupRecyclerView(recyclerView, pickupItemsWithImagesList);
+                }
+            } else {
+                FirebaseForAdapters.fetchItem(itemKey, item -> {
+                    if (item != null) {
+                        cachedItemsMap.put(itemKey, item);  // Store in cache
+                        PickupItemWithImages pickupItemWithImages = new PickupItemWithImages(pickupItem, item.getImageUrls());
+                        pickupItemsWithImagesList.add(pickupItemWithImages);
+                        setItemChangeListener(itemKey);  // Set the real-time listener for the item
+
+                        if (pickupItemsWithImagesList.size() == pickupItems.size()) {
+                            setupRecyclerView(recyclerView, pickupItemsWithImagesList);
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    private void setItemChangeListener(String itemKey) {
+        FirebaseForAdapters.listenToItemChanges(itemKey, updatedItem -> {
+            if (updatedItem != null) {
+                cachedItemsMap.put(itemKey, updatedItem);  // Update the cache
+
+                // Find all relevant positions in the transaction request list that contain this itemKey
+                for (int i = 0; i < transactionRequestList.size(); i++) {
+                    List<PickupItem> pickupItems = transactionRequestList.get(i).getRequestedItemsToMove();
+                    for (PickupItem pickupItem : pickupItems) {
+                        if ((pickupItem.getBarcode() + "_" + pickupItem.getName()).equals(itemKey)) {
+                            notifyItemChanged(i);  // Notify the adapter to refresh the view
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    private void setupRecyclerView(RecyclerView recyclerView, List<PickupItemWithImages> pickupItemsWithImagesList) {
+        PickupItemAdapter pickupItemAdapter = new PickupItemAdapter(context, pickupItemsWithImagesList);
+        recyclerView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
+        recyclerView.setAdapter(pickupItemAdapter);
     }
 
     private void acceptTransactionRequest(TransactionRequest request) {
-        AtomicBoolean allItemsAvailable = new AtomicBoolean(true);
-        AtomicInteger itemsChecked = new AtomicInteger(0); // To keep track of checked items
-
-        for (PickupItem pickupItem : request.getRequestedItemsToMove()) {
-            String documentId = pickupItem.getBarcode() + "_" + pickupItem.getName();
+        if (request.isOnUpdate()) {
+            Toast.makeText(context, "On update", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        AtomicInteger itemsChecked = new AtomicInteger(0);// To keep track of checked items
+        AtomicInteger anyItemOnUpdate = new AtomicInteger(0);
+        AtomicInteger maxQuantityItem = new AtomicInteger(0);
+        List<PickupItem> missingItems = Collections.synchronizedList(new ArrayList<>());
+        for (PickupItem requestedItem : request.getRequestedItemsToMove()) {
+            String documentId = requestedItem.getBarcode() + "_" + requestedItem.getName();
             FirebaseForAdapters.fetchItem(documentId, item -> {
                 boolean itemAvailable = false;
+                int calculatedQuantityonWarehouse = 0;
+                if (item.isOnUpdate()) anyItemOnUpdate.set(-1);
+
                 for (ItemWarehouse itemWarehouse : item.getItemWarehouses()) {
-                    if (itemWarehouse.getWarehouseName().equals(request.getWarehouse()) && itemWarehouse.getQuantity() >= pickupItem.getQuantity()) {
-                        itemAvailable = true;
-                        break;
+                    if (itemWarehouse.getWarehouseName().equals(request.getWarehouse())) {
+                        if (itemWarehouse.getQuantity() >= requestedItem.getQuantity()) {
+                            itemAvailable = true;
+                            break;
+                        }
+                        else
+                        {
+                            calculatedQuantityonWarehouse=(calculatedQuantityonWarehouse+itemWarehouse.getQuantity());
+                        }
+                    } else {
+                        maxQuantityItem.set(Math.max(maxQuantityItem.get(), itemWarehouse.getQuantity()));
                     }
                 }
-                if (!itemAvailable) {
-                    allItemsAvailable.set(false);
+                if (!itemAvailable && calculatedQuantityonWarehouse<requestedItem.getQuantity()) {
+                    requestedItem.setQuantity(requestedItem.getQuantity()-calculatedQuantityonWarehouse);
+                    missingItems.add(requestedItem);
                 }
 
                 // Increment the checked items count
                 if (itemsChecked.incrementAndGet() == request.getRequestedItemsToMove().size()) {
-                    if (allItemsAvailable.get()) {
+                    if (anyItemOnUpdate.get() == -1) {
+                        Toast.makeText(context, "One or more of the items are on update", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    if (!itemAvailable && maxQuantityItem.get() < requestedItem.getQuantity()) {
+                        Toast.makeText(context, "The Item " + requestedItem.getName() + " quantity requests special modifications do it manually", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    if (missingItems.isEmpty()) {
                         // All items are available, proceed to update the order status
                         FirebaseForAdapters.fetchOrder(request.getOrderId(), new FirebaseForAdapters.OrderCallback() {
                             @Override
@@ -145,7 +217,11 @@ public class TransactionRequestAdapter extends RecyclerView.Adapter<TransactionR
                             }
                         });
                     } else {
-                        Toast.makeText(context, "Not all items are available in the warehouse", Toast.LENGTH_SHORT).show();
+                        // Some items are missing, update the request with missing items and navigate to AcceptTransactionActivity
+                        request.setRequestedItemsToMove(missingItems);
+                        if (context instanceof RequestsActivity) {
+                            ((RequestsActivity) context).startAcceptTransactionActivity(request);
+                        }
                     }
                 }
             });
@@ -250,6 +326,11 @@ public class TransactionRequestAdapter extends RecyclerView.Adapter<TransactionR
         });
         animator.setInterpolator(new AccelerateDecelerateInterpolator());
         return animator;
+    }
+
+    @Override
+    public int getItemCount() {
+        return transactionRequestList.size();
     }
 
     public static class TransactionRequestViewHolder extends RecyclerView.ViewHolder {

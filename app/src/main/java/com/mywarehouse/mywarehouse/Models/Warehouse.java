@@ -3,6 +3,8 @@ package com.mywarehouse.mywarehouse.Models;
 import com.google.android.gms.maps.model.LatLng;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 public class Warehouse {
@@ -29,6 +31,41 @@ public class Warehouse {
         this.name = name;
         this.points = points;
         this.active = active;
+    }
+
+    public void sortPoints() {
+        if (points.size() != 4) {
+            throw new IllegalArgumentException("There must be exactly 4 points.");
+        }
+        // Find the bottom-left point
+        MyLatLng bottomLeft = Collections.min(points, new Comparator<MyLatLng>() {
+            @Override
+            public int compare(MyLatLng p1, MyLatLng p2) {
+                if (p1.latitude != p2.latitude) {
+                    return Double.compare(p1.latitude, p2.latitude);
+                } else {
+                    return Double.compare(p1.longitude, p2.longitude);
+                }
+            }
+        });
+
+        // Remove the bottom-left point from the list
+        points.remove(bottomLeft);
+
+        // Sort the remaining points based on their positions relative to the bottom-left point
+        points.sort(new Comparator<MyLatLng>() {
+            @Override
+            public int compare(MyLatLng p1, MyLatLng p2) {
+                double angle1 = Math.atan2(p1.latitude - bottomLeft.latitude, p1.longitude - bottomLeft.longitude);
+                double angle2 = Math.atan2(p2.latitude - bottomLeft.latitude, p2.longitude - bottomLeft.longitude);
+                return Double.compare(angle1, angle2);
+            }
+        });
+
+        // Add the bottom-left point back to the beginning of the list
+        points.add(0, bottomLeft);
+
+        this.points=points;
     }
 
     public String getName() {

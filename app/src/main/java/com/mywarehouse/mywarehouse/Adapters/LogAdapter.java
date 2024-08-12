@@ -4,6 +4,8 @@ import android.animation.ValueAnimator;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.widget.AppCompatImageView;
@@ -36,49 +38,54 @@ public class LogAdapter extends RecyclerView.Adapter<LogAdapter.LogViewHolder> {
     public void onBindViewHolder(@NonNull LogViewHolder holder, int position) {
         MyLog myLog = myLogs.get(position);
         holder.logTitle.setText(myLog.getTitle());
-        holder.logNotes.setText(myLog.getNotes());
         holder.logInvokedBy.setText(myLog.getInvokedBy());
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
-        String firstLine = myLog.getNotes().split("\n")[0];
         holder.logDate.setText(dateFormat.format(myLog.getDate()));
+
+        String firstLine = myLog.getNotes().split("\n")[0];
         holder.logNotes.setText(firstLine);
-        collapseTextView(holder.logNotes, 1);
         myLog.setCollapsed(true);
 
         holder.itemView.setOnClickListener(v -> {
             if (myLog.isCollapsed()) {
-                holder.logNotes.setText(myLog.getNotes());
-                expandTextView(holder.logNotes);
+                expandTextView(holder.logNotes, myLog.getNotes());
             } else {
-                collapseTextView(holder.logNotes, 1);
-                holder.logNotes.setText(firstLine);
+                collapseTextView(holder.logNotes, firstLine);
             }
             myLog.setCollapsed(!myLog.isCollapsed());
         });
     }
 
-    private void expandTextView(MaterialTextView textView) {
-        int initialHeight = textView.getMeasuredHeight();
-        textView.setMaxLines(Integer.MAX_VALUE);
-        textView.measure(View.MeasureSpec.makeMeasureSpec(textView.getWidth(), View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+    private void expandTextView(MaterialTextView textView, String fullText) {
+        textView.setText(fullText);
+        textView.measure(
+                View.MeasureSpec.makeMeasureSpec(textView.getWidth(), View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        );
+
         int targetHeight = textView.getMeasuredHeight();
 
-        ValueAnimator animator = ValueAnimator.ofInt(initialHeight, targetHeight);
+        // Ensure the height of the TextView is properly updated before animation
+        ValueAnimator animator = ValueAnimator.ofInt(textView.getHeight(), targetHeight);
         animator.addUpdateListener(animation -> {
             int animatedValue = (int) animation.getAnimatedValue();
             textView.getLayoutParams().height = animatedValue;
             textView.requestLayout();
         });
 
-        animator.setDuration((long) (Math.max(targetHeight - initialHeight, 0) * 1.5));
+        animator.setDuration(100);
         animator.start();
     }
 
-    private void collapseTextView(MaterialTextView textView, int maxLines) {
-        int initialHeight = textView.getMeasuredHeight();
-        textView.setMaxLines(maxLines);
-        textView.measure(View.MeasureSpec.makeMeasureSpec(textView.getWidth(), View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+    private void collapseTextView(MaterialTextView textView, String firstLine) {
+        int initialHeight = textView.getHeight();
+        textView.setText(firstLine);
+        textView.measure(
+                View.MeasureSpec.makeMeasureSpec(textView.getWidth(), View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        );
+
         int targetHeight = textView.getMeasuredHeight();
 
         ValueAnimator animator = ValueAnimator.ofInt(initialHeight, targetHeight);
@@ -88,7 +95,7 @@ public class LogAdapter extends RecyclerView.Adapter<LogAdapter.LogViewHolder> {
             textView.requestLayout();
         });
 
-        animator.setDuration((long) (Math.max(initialHeight - targetHeight, 0) * 1.5));
+        animator.setDuration(20);
         animator.start();
     }
 

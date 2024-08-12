@@ -26,11 +26,7 @@ import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
-import com.google.firebase.firestore.FirebaseFirestore;
-import com.mywarehouse.mywarehouse.Enums.LogType;
 import com.mywarehouse.mywarehouse.Firebase.FirebaseAddNewWarehouse;
-import com.mywarehouse.mywarehouse.Models.MyLog;
-import com.mywarehouse.mywarehouse.Models.Warehouse;
 import com.mywarehouse.mywarehouse.R;
 import com.mywarehouse.mywarehouse.Utilities.CustomNestedScrollView;
 import com.mywarehouse.mywarehouse.Utilities.MyUser;
@@ -47,10 +43,8 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -66,7 +60,6 @@ public class AddNewWarehouseActivity extends AppCompatActivity implements OnMapR
     private List<Marker> markers = new ArrayList<>();
     private Polygon currentPolygon;
     private CustomNestedScrollView customNestedScrollView;
-    private FirebaseFirestore db;
     private ExecutorService executorService;
 
     @Override
@@ -79,7 +72,6 @@ public class AddNewWarehouseActivity extends AppCompatActivity implements OnMapR
         saveButton = findViewById(R.id.button_save_warehouse);
         bottomNavigationView = findViewById(R.id.bottom_navigation);
         customNestedScrollView = findViewById(R.id.custom_nested_scroll_view);
-        db = FirebaseFirestore.getInstance();
         executorService = Executors.newSingleThreadExecutor();
         // Initialize the FusedLocationProviderClient
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
@@ -143,8 +135,7 @@ public class AddNewWarehouseActivity extends AppCompatActivity implements OnMapR
             if (markers.size() < 4) {
                 Marker marker = mMap.addMarker(new MarkerOptions()
                         .position(latLng)
-                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_pin_marker))
-                        .title("Search Result"));
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.ic_pin_marker)));
                 markers.add(marker);
                 if (markers.size() == 4) {
                     sortAndDrawWarehouse();
@@ -216,14 +207,11 @@ public class AddNewWarehouseActivity extends AppCompatActivity implements OnMapR
         }
 
         // Find the bottom-left point
-        LatLng bottomLeft = Collections.min(points, new Comparator<LatLng>() {
-            @Override
-            public int compare(LatLng p1, LatLng p2) {
-                if (p1.latitude != p2.latitude) {
-                    return Double.compare(p1.latitude, p2.latitude);
-                } else {
-                    return Double.compare(p1.longitude, p2.longitude);
-                }
+        LatLng bottomLeft = Collections.min(points, (p1, p2) -> {
+            if (p1.latitude != p2.latitude) {
+                return Double.compare(p1.latitude, p2.latitude);
+            } else {
+                return Double.compare(p1.longitude, p2.longitude);
             }
         });
 
@@ -231,13 +219,10 @@ public class AddNewWarehouseActivity extends AppCompatActivity implements OnMapR
         points.remove(bottomLeft);
 
         // Sort the remaining points based on their positions relative to the bottom-left point
-        points.sort(new Comparator<LatLng>() {
-            @Override
-            public int compare(LatLng p1, LatLng p2) {
-                double angle1 = Math.atan2(p1.latitude - bottomLeft.latitude, p1.longitude - bottomLeft.longitude);
-                double angle2 = Math.atan2(p2.latitude - bottomLeft.latitude, p2.longitude - bottomLeft.longitude);
-                return Double.compare(angle1, angle2);
-            }
+        points.sort((p1, p2) -> {
+            double angle1 = Math.atan2(p1.latitude - bottomLeft.latitude, p1.longitude - bottomLeft.longitude);
+            double angle2 = Math.atan2(p2.latitude - bottomLeft.latitude, p2.longitude - bottomLeft.longitude);
+            return Double.compare(angle1, angle2);
         });
 
         // Add the bottom-left point back to the beginning of the list
@@ -275,12 +260,13 @@ public class AddNewWarehouseActivity extends AppCompatActivity implements OnMapR
         for (Marker marker : markers) {
             points.add(marker.getPosition());
         }
-
         FirebaseAddNewWarehouse.saveWarehouse(name, points, true, new FirebaseAddNewWarehouse.FirestoreCallback() {
             @Override
             public void onSuccess() {
                 Toast.makeText(AddNewWarehouseActivity.this, "Warehouse saved successfully", Toast.LENGTH_SHORT).show();
                 saveLog(name, new Date());
+                Intent intent = new Intent(AddNewWarehouseActivity.this, InventoryActivity.class);
+                startActivity(intent);
                 finish();
             }
 
@@ -292,7 +278,7 @@ public class AddNewWarehouseActivity extends AppCompatActivity implements OnMapR
     }
 
     private void saveLog(String warehouseName, Date date) {
-        String invokedBy = MyUser.getInstance().getName();
+        String invokedBy = MyUser.getInstance().getUser().getName();
         FirebaseAddNewWarehouse.saveLog(warehouseName, date, invokedBy, new FirebaseAddNewWarehouse.FirestoreCallback() {
             @Override
             public void onSuccess() {

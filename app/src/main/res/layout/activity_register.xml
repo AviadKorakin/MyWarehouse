@@ -59,6 +59,7 @@
                     android:hint="@string/enter_email"
                     android:inputType="textEmailAddress"
                     android:textColor="@color/white"
+                    android:autofillHints="emailAddress"
                     android:textColorHint="@color/black"
                     android:background="@null"
                     android:padding="12dp" />
@@ -93,6 +94,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:hint="@string/enter_name"
+                    android:autofillHints="name"
                     android:inputType="textPersonName"
                     android:textColor="@color/white"
                     android:textColorHint="@color/black"
@@ -198,6 +200,7 @@
                         android:layout_height="wrap_content"
                         android:hint="@string/enter_phone"
                         android:inputType="phone"
+                        android:autofillHints="creditCardNumber"
                         android:textColor="@color/white"
                         android:textColorHint="@color/black"
                         android:background="@null"
@@ -270,6 +273,7 @@
                     android:hint="@string/enter_password"
                     android:inputType="textPassword"
                     android:textColor="@color/white"
+                    android:autofillHints="password"
                     android:textColorHint="@color/black"
                     android:background="@null"
                     android:padding="12dp" />
@@ -307,6 +311,7 @@
                     android:hint="@string/confirm_password"
                     android:inputType="textPassword"
                     android:textColor="@color/white"
+                    android:autofillHints="password"
                     android:textColorHint="@color/black"
                     android:background="@null"
                     android:padding="12dp" />

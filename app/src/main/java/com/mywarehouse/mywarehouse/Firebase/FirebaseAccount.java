@@ -3,12 +3,11 @@ package com.mywarehouse.mywarehouse.Firebase;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.FirebaseFirestore;
+
 
 import java.util.Map;
 
-public class FirebaseAccount {
-
+public class FirebaseAccount extends FirebaseManager{
     public interface FetchCallback {
         void onSuccess(DocumentSnapshot document);
         void onFailure(Exception e);
@@ -19,7 +18,7 @@ public class FirebaseAccount {
         void onFailure(Exception e);
     }
 
-    public static void fetchUserData(FirebaseFirestore db, String userId, FetchCallback callback) {
+    public static void fetchUserData(String userId, FetchCallback callback) {
         db.collection("users").document(userId).get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful() && task.getResult() != null) {
@@ -30,7 +29,7 @@ public class FirebaseAccount {
                 });
     }
 
-    public static void updateUserData(FirebaseFirestore db, FirebaseAuth mAuth, String userId, Map<String, Object> updates, String password, UpdateCallback callback) {
+    public static void updateUserData(FirebaseAuth mAuth, String userId, Map<String, Object> updates, String password, UpdateCallback callback) {
         db.collection("users").document(userId).update(updates)
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {

@@ -1,8 +1,6 @@
 package com.mywarehouse.mywarehouse.Firebase;
 
-import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FieldValue;
-import com.google.firebase.firestore.FirebaseFirestore;
 import com.mywarehouse.mywarehouse.Models.Item;
 import com.mywarehouse.mywarehouse.Models.ItemWarehouse;
 import com.mywarehouse.mywarehouse.Models.Order;
@@ -12,9 +10,10 @@ import com.mywarehouse.mywarehouse.Models.PickupItemWithImagesAndLocations;
 import com.mywarehouse.mywarehouse.Models.Warehouse;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
-public class FirebaseShowPickUp {
+public class FirebaseShowPickUp extends FirebaseManager{
 
     public interface ItemCallback {
         void onCallback(Item item);
@@ -34,7 +33,6 @@ public class FirebaseShowPickUp {
     }
 
     public static void fetchItem(String documentId, ItemCallback callback) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
         db.collection("items").document(documentId).get().addOnCompleteListener(task -> {
             if (task.isSuccessful() && task.getResult() != null) {
                 Item item = task.getResult().toObject(Item.class);
@@ -43,7 +41,7 @@ public class FirebaseShowPickUp {
         });
     }
 
-    public static void fetchPickupItemsWithImagesAndLocations(List<PickupItem> pickupItems, String selectedWarehouse, PickupItemsCallback callback) {
+    public static void fetchPickupItemsWithImagesAndLocations(HashMap<PickupItem,Integer>  pickupItemQuantityMap, List<PickupItem> pickupItems, String selectedWarehouse, PickupItemsCallback callback) {
         List<PickupItemWithImagesAndLocations> pickupItemsWithImagesAndLocationsList = new ArrayList<>();
 
         for (PickupItem pickupItem : pickupItems) {
@@ -55,6 +53,7 @@ public class FirebaseShowPickUp {
                         relevantLocations.add(itemWarehouse);
                     }
                 }
+                pickupItemQuantityMap.put(pickupItem,pickupItem.getQuantity());
                 PickupItemWithImages pickupItemWithImages = new PickupItemWithImages(pickupItem, item.getImageUrls());
                 PickupItemWithImagesAndLocations pickupItemWithImagesAndLocations = new PickupItemWithImagesAndLocations(pickupItemWithImages, relevantLocations);
                 pickupItemsWithImagesAndLocationsList.add(pickupItemWithImagesAndLocations);
@@ -67,17 +66,16 @@ public class FirebaseShowPickUp {
     }
 
     public static void fetchWarehouse(String warehouseName, WarehouseCallback callback) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
         db.collection("warehouses").document(warehouseName).get().addOnCompleteListener(task -> {
             if (task.isSuccessful() && task.getResult() != null) {
                 Warehouse warehouse = task.getResult().toObject(Warehouse.class);
+                warehouse.sortPoints();
                 callback.onCallback(warehouse);
             }
         });
     }
 
     public static void updateOrder(Order order, FirestoreCallback callback) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
         db.collection("orders").document(order.getOrderId())
                 .set(order)
                 .addOnSuccessListener(aVoid -> callback.onSuccess())
@@ -85,14 +83,12 @@ public class FirebaseShowPickUp {
     }
 
     public static void removeUserPickup(String userId, String orderId, FirestoreCallback callback) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
         db.collection("users").document(userId).update("pickups", FieldValue.arrayRemove(orderId))
                 .addOnSuccessListener(aVoid -> callback.onSuccess())
                 .addOnFailureListener(callback::onFailure);
     }
 
     public static void updateItem(Item item, FirestoreCallback callback) {
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
         db.collection("items").document(item.getBarcode() + "_" + item.getName())
                 .set(item)
                 .addOnSuccessListener(aVoid -> callback.onSuccess())

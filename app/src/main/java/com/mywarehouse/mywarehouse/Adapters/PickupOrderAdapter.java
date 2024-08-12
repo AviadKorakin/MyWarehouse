@@ -17,103 +17,90 @@ import com.google.android.material.textview.MaterialTextView;
 import com.mywarehouse.mywarehouse.Enums.OrderType;
 import com.mywarehouse.mywarehouse.Models.Item;
 import com.mywarehouse.mywarehouse.Models.ItemWarehouse;
-import com.mywarehouse.mywarehouse.Models.Order;
 import com.mywarehouse.mywarehouse.Models.PickupItem;
 import com.mywarehouse.mywarehouse.Models.PickupItemWithImages;
+import com.mywarehouse.mywarehouse.Models.Order;
 import com.mywarehouse.mywarehouse.Models.TransactionRequest;
 import com.mywarehouse.mywarehouse.R;
 import com.mywarehouse.mywarehouse.Firebase.FirebaseForAdapters;
 import com.mywarehouse.mywarehouse.Utilities.MyUser;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class PickupOrderAdapter extends RecyclerView.Adapter<PickupOrderAdapter.PickupOrderViewHolder> {
 
     private Context context;
     private List<Order> orderList;
-    private String selectedWarehouse;
     private Map<String, List<PickupItemWithImages>> orderPickupItemsMap;
-    private Map<String, Boolean> orderFetchedMap;
-    private Map<String, Boolean> orderAvailabilityMap;
-    private Map<String, List<PickupItem>> orderRequestedItemsMap;
     private Map<String, List<Item>> orderItemsMap;
     private Map<String, Boolean> visibilityMap;
+    private Map<String, List<PickupItem>> orderRequestedItemsMap;
+    private String selectedWarehouse;
 
-    public PickupOrderAdapter(Context context, List<Order> orderList, String selectedWarehouse) {
+    public PickupOrderAdapter(Context context, List<Order> orderList, Map<String, List<PickupItemWithImages>> orderPickupItemsMap, Map<String, List<Item>> orderItemsMap, String selectedWarehouse) {
         this.context = context;
         this.orderList = orderList;
-        this.selectedWarehouse = selectedWarehouse;
-        this.orderPickupItemsMap = new HashMap<>();
-        this.orderFetchedMap = new HashMap<>();
-        this.orderAvailabilityMap = new HashMap<>();
-        this.orderRequestedItemsMap = new HashMap<>();
-        this.orderItemsMap = new HashMap<>();
+        this.orderPickupItemsMap = orderPickupItemsMap;
+        this.orderItemsMap = orderItemsMap;
         this.visibilityMap = new HashMap<>();
+        this.orderRequestedItemsMap = new HashMap<>();
+        this.selectedWarehouse = selectedWarehouse;
     }
 
     public void setSelectedWarehouse(String selectedWarehouse) {
         this.selectedWarehouse = selectedWarehouse;
         if (orderList == null || orderList.isEmpty()) return;
-        if (!selectedWarehouse.equals("NONE")) {
-            checkOrderAvailability();
-        } else {
-            for (Order order : orderList) {
-                visibilityMap.put(order.getOrderId(), false);
-            }
-            notifyDataSetChanged();
-        }
+        checkOrderAvailability();
     }
 
-    private void checkOrderAvailability() {
+    public void checkOrderAvailability() {
         for (Order order : orderList) {
-            List<PickupItem> requestedItemsToMove = Collections.synchronizedList(new ArrayList<>());
-            AtomicBoolean allItemsAvailable = new AtomicBoolean(true);
+            if ("NONE".equals(selectedWarehouse)) {
+                visibilityMap.put(order.getOrderId(), false);
+                continue;
+            }
 
+            boolean allItemsAvailable = true;
             List<PickupItemWithImages> pickupItemsWithImagesList = orderPickupItemsMap.get(order.getOrderId());
             List<Item> itemsList = orderItemsMap.get(order.getOrderId());
+            List<PickupItem> requestedItemsToMove = new ArrayList<>();
 
-            if (pickupItemsWithImagesList == null || itemsList == null) continue;
+            if (itemsList == null || pickupItemsWithImagesList == null) continue;
 
-            synchronized (pickupItemsWithImagesList) {
-                for (int i = 0; i < pickupItemsWithImagesList.size(); i++) {
-                    PickupItemWithImages pickupItemWithImages = pickupItemsWithImagesList.get(i);
-                    Item item = itemsList.get(i);
-                    PickupItem pickupItem = pickupItemWithImages.getPickupItem();
-                    int availableQuantity = 0;
-                    for (ItemWarehouse itemWarehouse : item.getItemWarehouses()) {
-                        if (itemWarehouse.getWarehouseName().equals(selectedWarehouse)) {
-                            availableQuantity += itemWarehouse.getQuantity();
-                        }
-                    }
-                    if (availableQuantity < pickupItem.getQuantity()) {
-                        allItemsAvailable.set(false);
-                        requestedItemsToMove.add(pickupItem);
-                    }
+            for (int i = 0; i < pickupItemsWithImagesList.size(); i++) {
+                PickupItemWithImages pickupItemWithImages = pickupItemsWithImagesList.get(i);
+                Item item = itemsList.get(i);
+
+                int availableQuantity = item.getItemWarehouses().stream()
+                        .filter(wh -> wh.getWarehouseName().equals(selectedWarehouse))
+                        .mapToInt(ItemWarehouse::getQuantity)
+                        .sum();
+
+                if (availableQuantity < pickupItemWithImages.getPickupItem().getQuantity()) {
+                    allItemsAvailable = false;
+                    requestedItemsToMove.add(pickupItemWithImages.getPickupItem());
                 }
             }
 
-            if (allItemsAvailable.get()) {
+            if (allItemsAvailable) {
                 order.setStatus(OrderType.REGISTERED);
-                orderAvailabilityMap.put(order.getOrderId(), true);
+                orderRequestedItemsMap.remove(order.getOrderId());
             } else {
                 order.setStatus(OrderType.TRANSACTIONS_NEEDED);
-                orderAvailabilityMap.put(order.getOrderId(), false);
                 orderRequestedItemsMap.put(order.getOrderId(), requestedItemsToMove);
             }
             visibilityMap.put(order.getOrderId(), true);
-            notifyItemChanged(orderList.indexOf(order));
         }
         sortOrders();
+        notifyDataSetChanged();
     }
 
     private void sortOrders() {
-        Collections.sort(orderList, (o1, o2) -> {
+        orderList.sort((o1, o2) -> {
             if (o1.getStatus() == OrderType.REGISTERED && o2.getStatus() != OrderType.REGISTERED) {
                 return -1;
             } else if (o1.getStatus() != OrderType.REGISTERED && o2.getStatus() == OrderType.REGISTERED) {
@@ -122,7 +109,6 @@ public class PickupOrderAdapter extends RecyclerView.Adapter<PickupOrderAdapter.
                 return o1.getOrderDate().compareTo(o2.getOrderDate());
             }
         });
-        notifyDataSetChanged();
     }
 
     @NonNull
@@ -136,11 +122,13 @@ public class PickupOrderAdapter extends RecyclerView.Adapter<PickupOrderAdapter.
     public void onBindViewHolder(@NonNull PickupOrderViewHolder holder, int position) {
         Order order = orderList.get(position);
 
-        if (visibilityMap.getOrDefault(order.getOrderId(), false) && !selectedWarehouse.equals("NONE")) {
+        if (visibilityMap.getOrDefault(order.getOrderId(), true)) {
             holder.itemView.setVisibility(View.VISIBLE);
             holder.orderId.setText(order.getOrderId());
             holder.orderDate.setText(order.getOrderDate().toString());
-            holder.orderStatus.setText(order.getStatus().toString());
+            if(order.getStatus()!=null) {
+                holder.orderStatus.setText(order.getStatus().toString());
+            }
 
             if (order.getStatus() == OrderType.REGISTERED) {
                 holder.itemView.setBackgroundColor(Color.parseColor("#228B22")); // Forest green
@@ -149,49 +137,23 @@ public class PickupOrderAdapter extends RecyclerView.Adapter<PickupOrderAdapter.
             } else {
                 holder.itemView.setBackgroundColor(Color.WHITE);
             }
+
+            holder.itemView.setOnClickListener(v -> {
+                if (holder.isExpanded) {
+                    collapse(holder.recyclerViewOrderItems);
+                    holder.isExpanded = false;
+                } else {
+                    expand(holder.recyclerViewOrderItems);
+                    holder.isExpanded = true;
+                }
+            });
+
+            holder.requestButton.setOnClickListener(v -> handleRequestButton(order));
+
+            setupRecyclerView(holder.recyclerViewOrderItems, order.getOrderId());
         } else {
             holder.itemView.setVisibility(View.INVISIBLE);
         }
-
-        if (!orderFetchedMap.getOrDefault(order.getOrderId(), false)) {
-            List<PickupItemWithImages> pickupItemsWithImagesList = Collections.synchronizedList(new ArrayList<>());
-            List<Item> itemsList = Collections.synchronizedList(new ArrayList<>());
-            orderPickupItemsMap.put(order.getOrderId(), pickupItemsWithImagesList);
-            orderItemsMap.put(order.getOrderId(), itemsList);
-
-            FirebaseForAdapters.fetchPickupItemsWithImages(order.getPickupItems(), new FirebaseForAdapters.PickupItemsCallback() {
-                @Override
-                public void onCallback(List<PickupItemWithImages> pickupItemsWithImages) {
-                    pickupItemsWithImagesList.addAll(pickupItemsWithImages);
-                    for (PickupItemWithImages pickupItemWithImages : pickupItemsWithImages) {
-                        FirebaseForAdapters.fetchItem(pickupItemWithImages.getPickupItem().getBarcode() + "_" + pickupItemWithImages.getPickupItem().getName(), new FirebaseForAdapters.ItemCallback() {
-                            @Override
-                            public void onCallback(Item item) {
-                                itemsList.add(item);
-                                if (itemsList.size() == pickupItemsWithImages.size()) {
-                                    orderFetchedMap.put(order.getOrderId(), true);
-                                    setupRecyclerView(holder.recyclerViewOrderItems, order.getOrderId());
-                                }
-                            }
-                        });
-                    }
-                }
-            });
-        } else {
-            setupRecyclerView(holder.recyclerViewOrderItems, order.getOrderId());
-        }
-
-        holder.itemView.setOnClickListener(v -> {
-            if (holder.isExpanded) {
-                collapse(holder.recyclerViewOrderItems);
-                holder.isExpanded = false;
-            } else {
-                expand(holder.recyclerViewOrderItems);
-                holder.isExpanded = true;
-            }
-        });
-
-        holder.requestButton.setOnClickListener(v -> handleRequestButton(order));
     }
 
     private void setupRecyclerView(RecyclerView recyclerView, String orderId) {
@@ -248,19 +210,15 @@ public class PickupOrderAdapter extends RecyclerView.Adapter<PickupOrderAdapter.
     }
 
     private void handleRequestButton(Order order) {
-        if (selectedWarehouse.equals("NONE")) return;
-
         FirebaseForAdapters.fetchOrder(order.getOrderId(), new FirebaseForAdapters.OrderCallback() {
             @Override
             public void onCallback(Order latestOrder) {
                 if (latestOrder != null && latestOrder.getStatus() == OrderType.REGISTERED) {
-                    boolean allItemsAvailable = orderAvailabilityMap.getOrDefault(order.getOrderId(), false);
-                    List<PickupItem> requestedItemsToMove = orderRequestedItemsMap.getOrDefault(order.getOrderId(), new ArrayList<>());
+                    boolean allItemsAvailable = order.getStatus() == OrderType.REGISTERED;
+                    List<PickupItem> requestedItemsToMove = orderRequestedItemsMap.get(order.getOrderId());
                     processRequest(order, allItemsAvailable, requestedItemsToMove);
                 } else {
                     Toast.makeText(context, "Order status has changed. Please refresh.", Toast.LENGTH_SHORT).show();
-                    visibilityMap.put(order.getOrderId(), false);
-                    notifyItemChanged(orderList.indexOf(order));
                 }
             }
 
@@ -272,7 +230,7 @@ public class PickupOrderAdapter extends RecyclerView.Adapter<PickupOrderAdapter.
     }
 
     private void processRequest(Order order, boolean allItemsAvailable, List<PickupItem> requestedItemsToMove) {
-        String userId = MyUser.getInstance().getDocumentId();
+        String userId = MyUser.getInstance().getUser().getUserId();
         FirebaseForAdapters.addUserPickup(userId, order.getOrderId(), new FirebaseForAdapters.FirestoreCallback() {
             @Override
             public void onSuccess() {
@@ -296,7 +254,7 @@ public class PickupOrderAdapter extends RecyclerView.Adapter<PickupOrderAdapter.
                     FirebaseForAdapters.updateOrder(order, new FirebaseForAdapters.FirestoreCallback() {
                         @Override
                         public void onSuccess() {
-                            TransactionRequest transactionRequest = new TransactionRequest(UUID.randomUUID().toString(), selectedWarehouse, order.getOrderId(), MyUser.getInstance().getDocumentId(), requestedItemsToMove);
+                            TransactionRequest transactionRequest = new TransactionRequest(UUID.randomUUID().toString(), selectedWarehouse, order.getOrderId(), MyUser.getInstance().getUser().getUserId(), requestedItemsToMove, false);
                             FirebaseForAdapters.createTransactionRequest(transactionRequest, new FirebaseForAdapters.FirestoreCallback() {
                                 @Override
                                 public void onSuccess() {

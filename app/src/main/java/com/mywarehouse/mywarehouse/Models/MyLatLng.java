@@ -51,4 +51,24 @@ public class MyLatLng implements Parcelable {
     public LatLng toLatLng() {
         return new LatLng(this.latitude, this.longitude);
     }
+
+    // equals method
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        MyLatLng myLatLng = (MyLatLng) o;
+
+        if (Double.compare(myLatLng.latitude, latitude) != 0) return false;
+        return Double.compare(myLatLng.longitude, longitude) == 0;
+    }
+
+    // hashCode method
+    @Override
+    public int hashCode() {
+        int result = Double.hashCode(latitude);
+        result = 31 * result + Double.hashCode(longitude);
+        return result;
+    }
 }

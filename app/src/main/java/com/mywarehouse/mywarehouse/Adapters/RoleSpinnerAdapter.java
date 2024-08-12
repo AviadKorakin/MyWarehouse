@@ -15,13 +15,12 @@ import com.mywarehouse.mywarehouse.R;
 
 public class RoleSpinnerAdapter extends BaseAdapter {
 
-    private Context context;
+
     private String[] roles;
     private int[] icons;
     private LayoutInflater inflater;
 
     public RoleSpinnerAdapter(Context context, String[] roles, int[] icons) {
-        this.context = context;
         this.roles = roles;
         this.icons = icons;
         inflater = LayoutInflater.from(context);

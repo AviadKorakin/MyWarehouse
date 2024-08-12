@@ -1,10 +1,8 @@
 package com.mywarehouse.mywarehouse.Activities;
 
 import android.app.DatePickerDialog;
-import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -12,15 +10,12 @@ import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.AppCompatImageButton;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
-import com.google.android.material.navigation.NavigationBarView;
-import com.google.firebase.firestore.FirebaseFirestore;
 import com.mywarehouse.mywarehouse.Adapters.LogAdapter;
 import com.mywarehouse.mywarehouse.Enums.LogType;
 import com.mywarehouse.mywarehouse.Firebase.FirebaseLogs;
@@ -34,8 +29,6 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class ReportsActivity extends AppCompatActivity {
 
@@ -44,23 +37,16 @@ public class ReportsActivity extends AppCompatActivity {
     private RecyclerView recyclerViewLogs;
     private LogAdapter logAdapter;
     private List<MyLog> logList = new ArrayList<>();
-    private FirebaseFirestore db;
     private EditText dateInput;
     private Spinner typeSpinner;
     private BottomNavigationView bottomNavigationView;
-    private ExecutorService executorService;
-    private Intent intent;
     private Date selectedDate;
-
-    private final int REFRESH_INTERVAL = 10000; // 10 seconds
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_reports);
         overridePendingTransition(R.anim.dark_screen, R.anim.light_screen);
-        db = FirebaseFirestore.getInstance();
-        executorService = Executors.newSingleThreadExecutor();
 
         recyclerViewLogs = findViewById(R.id.recycler_logs);
         dateInput = findViewById(R.id.date_input);
@@ -73,34 +59,15 @@ public class ReportsActivity extends AppCompatActivity {
 
         // Initialize Navigation Bar
         setupNavigationBar();
+
         // Setup date picker
         dateInput.setOnClickListener(v -> showDatePicker());
 
         // Setup type spinner
         setupTypeSpinner();
 
-        initialLoadLogs();
-        AppCompatImageButton refreshButton = findViewById(R.id.refresh_button);
-        refreshButton.setOnClickListener(v -> fetchLogs());
-
-        // Fetch logs every 10 seconds
-        executorService.execute(() -> {
-            try {
-                while (!Thread.currentThread().isInterrupted()) {
-                    fetchLogs();
-                    Thread.sleep(REFRESH_INTERVAL);
-                }
-            } catch (InterruptedException e) {
-                Log.e(TAG, "ExecutorService interrupted", e);
-                Thread.currentThread().interrupt();
-            }
-        });
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        executorService.shutdownNow();
+        // Set up the real-time listener for logs
+        setupRealtimeLogListener();
     }
 
     private void showDatePicker() {
@@ -123,41 +90,21 @@ public class ReportsActivity extends AppCompatActivity {
         datePickerDialog.show();
     }
 
-    private void initialLoadLogs() {
-        FirebaseLogs.fetchLogs(db, new FirebaseLogs.LogsCallback() {
+    private void setupRealtimeLogListener() {
+        FirebaseLogs.listenToLogs(new FirebaseLogs.LogsCallback() {
             @Override
             public void onCallback(List<MyLog> logs) {
                 logList.clear();
                 logList.addAll(logs);
-                filterLogsByType(); // Filter logs by selected type
+                filterLogsByType();
                 logAdapter.setLogList(new ArrayList<>(logList));
-                Log.d(TAG, "Initial logs loaded: " + logList.size());
+                Log.d(TAG, "Logs updated in real-time: " + logList.size());
             }
 
             @Override
             public void onFailure(Exception e) {
-                Log.e(TAG, "Failed to load initial logs", e);
-                Toast.makeText(ReportsActivity.this, "Failed to load logs: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-            }
-        });
-    }
-
-    private void fetchLogs() {
-        FirebaseLogs.fetchLogs(db, new FirebaseLogs.LogsCallback() {
-            @Override
-            public void onCallback(List<MyLog> logs) {
-                runOnUiThread(() -> {
-                    logList.clear();
-                    logList.addAll(logs);
-                    filterLogsByDateAndType(selectedDate); // Apply date and type filters after fetching logs
-                });
-                Log.d(TAG, "Logs fetched: " + logs.size());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                Log.e(TAG, "Failed to fetch logs", e);
-                runOnUiThread(() -> Toast.makeText(ReportsActivity.this, "Failed to fetch logs: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                Log.e(TAG, "Failed to listen to logs", e);
+                Toast.makeText(ReportsActivity.this, "Failed to listen to logs: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -169,7 +116,7 @@ public class ReportsActivity extends AppCompatActivity {
         }
 
         LogType selectedType = (LogType) typeSpinner.getSelectedItem();
-        FirebaseLogs.filterLogsByDateAndType(db, date, selectedType, new FirebaseLogs.LogsCallback() {
+        FirebaseLogs.filterLogsByDateAndType(date, selectedType, new FirebaseLogs.LogsCallback() {
             @Override
             public void onCallback(List<MyLog> logs) {
                 logList.clear();
@@ -222,6 +169,6 @@ public class ReportsActivity extends AppCompatActivity {
 
     private void setupNavigationBar() {
         NavigationBarManager.getInstance().setupBottomNavigationView(bottomNavigationView, this);
-        NavigationBarManager.getInstance().setNavigation(bottomNavigationView,this,R.id.navigation_reports);
+        NavigationBarManager.getInstance().setNavigation(bottomNavigationView, this, R.id.navigation_reports);
     }
 }

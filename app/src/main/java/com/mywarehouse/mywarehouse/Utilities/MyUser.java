@@ -1,10 +1,11 @@
 package com.mywarehouse.mywarehouse.Utilities;
 
+import com.mywarehouse.mywarehouse.Models.User;
+
 public class MyUser {
 
     private static MyUser instance;
-    private String name;
-    private String documentId;
+    private User user;
 
     private MyUser() {
         // private constructor to prevent instantiation
@@ -16,20 +17,16 @@ public class MyUser {
         }
         return instance;
     }
-
-    public String getDocumentId() {
-        return documentId;
+    public void setUser(User user)
+    {
+        this.user=user;
     }
 
-    public void setDocumentId(String documentId) {
-        this.documentId = documentId;
+    public User getUser() {
+        return user;
     }
 
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
+    public static void setInstance(MyUser instance) {
+        MyUser.instance = instance;
     }
 }

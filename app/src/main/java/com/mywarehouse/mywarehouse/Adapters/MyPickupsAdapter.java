@@ -2,39 +2,47 @@ package com.mywarehouse.mywarehouse.Adapters;
 
 import android.animation.ValueAnimator;
 import android.content.Context;
-import android.content.Intent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.ImageButton;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.textview.MaterialTextView;
-import com.mywarehouse.mywarehouse.Activities.ShowPickUpActivity;
 import com.mywarehouse.mywarehouse.Enums.OrderType;
 import com.mywarehouse.mywarehouse.Models.Order;
 import com.mywarehouse.mywarehouse.Models.PickupItem;
 import com.mywarehouse.mywarehouse.Models.PickupItemWithImages;
 import com.mywarehouse.mywarehouse.R;
 import com.mywarehouse.mywarehouse.Firebase.FirebaseForAdapters;
+import com.mywarehouse.mywarehouse.Models.Item;
+import com.mywarehouse.mywarehouse.Utilities.MyUser;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 public class MyPickupsAdapter extends RecyclerView.Adapter<MyPickupsAdapter.MyPickupsViewHolder> {
 
     private Context context;
     private List<Order> pickupList;
+    private LaunchPickUpActivityCallback launchPickUpActivityCallback;
+    private Map<String, Item> cachedItemsMap;  // Cache for fetched items
 
-    public MyPickupsAdapter(Context context, List<Order> pickupList) {
+    public MyPickupsAdapter(Context context, List<Order> pickupList, LaunchPickUpActivityCallback callback) {
         this.context = context;
         this.pickupList = pickupList;
+        this.launchPickUpActivityCallback = callback;
+        this.cachedItemsMap = new HashMap<>();  // Initialize the cache
         sortPickups();
     }
 
@@ -52,7 +60,7 @@ public class MyPickupsAdapter extends RecyclerView.Adapter<MyPickupsAdapter.MyPi
         holder.orderDate.setText(order.getOrderDate().toString());
         holder.orderStatus.setText(order.getStatus().toString());
 
-        fetchPickupItems(holder.recyclerViewOrderItems, order.getPickupItems(), holder);
+        fetchPickupItems(holder.recyclerViewOrderItems, order.getPickupItems());
 
         holder.itemView.setOnClickListener(v -> {
             if (holder.isExpanded) {
@@ -64,29 +72,100 @@ public class MyPickupsAdapter extends RecyclerView.Adapter<MyPickupsAdapter.MyPi
             }
         });
 
-        holder.buttonCollect.setOnClickListener(v -> {
-            Intent intent = new Intent(context, ShowPickUpActivity.class);
-            intent.putExtra("order", order);
-            context.startActivity(intent);
-        });
+        holder.buttonCollect.setOnClickListener(v -> FirebaseForAdapters.checkOrderAvailability(order, new FirebaseForAdapters.FirestoreCallback() {
+            @Override
+            public void onSuccess() {
+                launchPickUpActivityCallback.launch(order);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Toast.makeText(context, "Order cannot be collected: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                order.setStatus(OrderType.REGISTERED);
+                FirebaseForAdapters.updateOrder(order, new FirebaseForAdapters.FirestoreCallback() {
+                    @Override
+                    public void onSuccess() {
+                        String userId = MyUser.getInstance().getUser().getUserId();
+                        FirebaseForAdapters.removeUserPickup(userId, order.getOrderId(), new FirebaseForAdapters.FirestoreCallback() {
+                            @Override
+                            public void onSuccess() {
+                                pickupList.remove(order);
+                                notifyDataSetChanged();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                Toast.makeText(context, "Error removing user pickup.", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        Toast.makeText(context, "Error updating order status.", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+        }));
     }
 
-    private void fetchPickupItems(RecyclerView recyclerView, List<PickupItem> pickupItems, MyPickupsViewHolder holder) {
+    private void fetchPickupItems(RecyclerView recyclerView, List<PickupItem> pickupItems) {
         List<PickupItemWithImages> pickupItemsWithImagesList = new ArrayList<>();
 
         for (PickupItem pickupItem : pickupItems) {
-            String documentId = pickupItem.getBarcode() + "_" + pickupItem.getName();
-            FirebaseForAdapters.fetchItem(documentId, item -> {
-                PickupItemWithImages pickupItemWithImages = new PickupItemWithImages(pickupItem, item.getImageUrls());
+            String itemKey = pickupItem.getBarcode() + "_" + pickupItem.getName();
+
+            if (cachedItemsMap.containsKey(itemKey)) {
+                Item cachedItem = cachedItemsMap.get(itemKey);
+                PickupItemWithImages pickupItemWithImages = new PickupItemWithImages(pickupItem, cachedItem.getImageUrls());
                 pickupItemsWithImagesList.add(pickupItemWithImages);
+                setItemChangeListener(itemKey);  // Set the real-time listener for the item
 
                 if (pickupItemsWithImagesList.size() == pickupItems.size()) {
-                    PickupItemAdapter pickupItemAdapter = new PickupItemAdapter(context, pickupItemsWithImagesList);
-                    recyclerView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
-                    recyclerView.setAdapter(pickupItemAdapter);
+                    setupRecyclerView(recyclerView, pickupItemsWithImagesList);
                 }
-            });
+            } else {
+                FirebaseForAdapters.fetchItem(itemKey, item -> {
+                    if (item != null) {
+                        cachedItemsMap.put(itemKey, item);  // Store in cache
+                        PickupItemWithImages pickupItemWithImages = new PickupItemWithImages(pickupItem, item.getImageUrls());
+                        pickupItemsWithImagesList.add(pickupItemWithImages);
+                        setItemChangeListener(itemKey);  // Set the real-time listener for the item
+
+                        if (pickupItemsWithImagesList.size() == pickupItems.size()) {
+                            setupRecyclerView(recyclerView, pickupItemsWithImagesList);
+                        }
+                    }
+                });
+            }
         }
+    }
+
+    private void setItemChangeListener(String itemKey) {
+        FirebaseForAdapters.listenToItemChanges(itemKey, updatedItem -> {
+            if (updatedItem != null) {
+                cachedItemsMap.put(itemKey, updatedItem);  // Update the cache
+                notifyItemChanged(itemKey);  // Notify the adapter to refresh the view
+            }
+        });
+    }
+
+    private void notifyItemChanged(String itemKey) {
+        for (int i = 0; i < pickupList.size(); i++) {
+            List<PickupItem> pickupItems = pickupList.get(i).getPickupItems();
+            for (PickupItem pickupItem : pickupItems) {
+                if ((pickupItem.getBarcode() + "_" + pickupItem.getName()).equals(itemKey)) {
+                    notifyItemChanged(i);
+                    return;
+                }
+            }
+        }
+    }
+
+    private void setupRecyclerView(RecyclerView recyclerView, List<PickupItemWithImages> pickupItemsWithImagesList) {
+        PickupItemAdapter pickupItemAdapter = new PickupItemAdapter(context, pickupItemsWithImagesList);
+        recyclerView.setLayoutManager(new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false));
+        recyclerView.setAdapter(pickupItemAdapter);
     }
 
     private void expand(final RecyclerView recyclerView) {
@@ -134,7 +213,6 @@ public class MyPickupsAdapter extends RecyclerView.Adapter<MyPickupsAdapter.MyPi
         animator.setInterpolator(new AccelerateDecelerateInterpolator());
         return animator;
     }
-
     private void sortPickups() {
         Collections.sort(pickupList, new Comparator<Order>() {
             @Override
@@ -147,12 +225,10 @@ public class MyPickupsAdapter extends RecyclerView.Adapter<MyPickupsAdapter.MyPi
             }
 
             private int getOrderPriority(OrderType status) {
-                switch (status) {
-                    case IN_PROGRESS:
-                        return 1;
-                    default:
-                        return 2;
+                if (Objects.requireNonNull(status) == OrderType.IN_PROGRESS) {
+                    return 1;
                 }
+                return 2;
             }
         });
         notifyDataSetChanged();
@@ -179,5 +255,9 @@ public class MyPickupsAdapter extends RecyclerView.Adapter<MyPickupsAdapter.MyPi
             buttonCollect = itemView.findViewById(R.id.button_collect);
             recyclerViewOrderItems.setVisibility(View.GONE);
         }
+    }
+
+    public interface LaunchPickUpActivityCallback {
+        void launch(Order order);
     }
 }

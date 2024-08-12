@@ -27,9 +27,7 @@ public class AccountActivity extends AppCompatActivity {
     private EditText emailInput, birthdayInput, passwordInput, confirmPasswordInput, phoneInput;
     private Spinner roleSpinner, countryCodeSpinner;
     private BottomNavigationView bottomNavigationView;
-    private Intent intent = null;
     private FirebaseAuth mAuth;
-    private FirebaseFirestore db;
     private boolean shouldCancelFetch = false;
     private String[] roles={"Picker","Warehouse worker","Warehouse worker and picker","Admin"};
     private int[] icons = {R.drawable.ic_picker,R.drawable.ic_warehouse_worker,
@@ -42,8 +40,6 @@ public class AccountActivity extends AppCompatActivity {
         overridePendingTransition(R.anim.dark_screen, R.anim.light_screen);
         // Initialize Firebase
         mAuth = FirebaseAuth.getInstance();
-        db = FirebaseFirestore.getInstance();
-
         // Find views
         findViews();
 
@@ -77,7 +73,7 @@ public class AccountActivity extends AppCompatActivity {
 
     private void fetchUserData() {
         String userId = mAuth.getCurrentUser().getUid();
-        FirebaseAccount.fetchUserData(db, userId, new FirebaseAccount.FetchCallback() {
+        FirebaseAccount.fetchUserData(userId, new FirebaseAccount.FetchCallback() {
             @Override
             public void onSuccess(DocumentSnapshot document) {
                 if (shouldCancelFetch) return; // Exit if fetch operation should be canceled
@@ -134,7 +130,7 @@ public class AccountActivity extends AppCompatActivity {
         updates.put("phone", countryCode + phone);
         updates.put("countryCode", countryCode);
 
-        FirebaseAccount.updateUserData(db, mAuth, userId, updates, password, new FirebaseAccount.UpdateCallback() {
+        FirebaseAccount.updateUserData( mAuth, userId, updates, password, new FirebaseAccount.UpdateCallback() {
             @Override
             public void onSuccess() {
                 Toast.makeText(AccountActivity.this, "User data updated successfully", Toast.LENGTH_SHORT).show();
