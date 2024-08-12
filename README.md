@@ -1,7 +1,3 @@
-Here's the updated README file:
-
----
-
 # MyWarehouse
 
 Welcome to the MyWarehouse project! This Android application is designed to streamline warehouse management by bridging the gap between warehouse workers and pickers. With robust features such as barcode scanning, map integration, camera and gallery access, Firebase integration, and real-time data synchronization, MyWarehouse is built to enhance efficiency and accuracy in warehouse operations.
@@ -36,7 +32,3 @@ Welcome to the MyWarehouse project! This Android application is designed to stre
 ## Contact
 
 For any inquiries or feedback, feel free to reach out via [email](mailto:aviad825@gmail.com).
-
----
-
-This README provides a concise yet thorough overview of the MyWarehouse project, focusing on its powerful features and professional design, tailored to appeal to job interviewers.
