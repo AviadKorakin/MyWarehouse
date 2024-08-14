@@ -6,6 +6,7 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
@@ -22,6 +23,7 @@ import com.journeyapps.barcodescanner.ScanOptions;
 import com.mywarehouse.mywarehouse.Adapters.ItemOrderAdapter;
 import com.mywarehouse.mywarehouse.Firebase.FirebaseAddOrder;
 import com.mywarehouse.mywarehouse.Models.ItemOrder;
+import com.mywarehouse.mywarehouse.Models.Order;
 import com.mywarehouse.mywarehouse.R;
 import com.mywarehouse.mywarehouse.Utilities.NavigationBarManager;
 
@@ -114,7 +116,16 @@ public class AddOrderActivity extends AppCompatActivity {
                 Toast.makeText(this, "No items selected", Toast.LENGTH_SHORT).show();
             }
         });
+        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                Intent intent = new Intent(AddOrderActivity.this, OrdersActivity.class);
+                startActivity(intent);
+                finish();
+            }
+        };
 
+        getOnBackPressedDispatcher().addCallback(this, callback);
         listenToItemChanges();
 
         // Setup navigation bar

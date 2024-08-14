@@ -74,12 +74,17 @@ public class PickupOrderAdapter extends RecyclerView.Adapter<PickupOrderAdapter.
             for (int i = 0; i < pickupItemsWithImagesList.size(); i++) {
                 PickupItemWithImages pickupItemWithImages = pickupItemsWithImagesList.get(i);
                 Item item = itemsList.get(i);
-
-                int availableQuantity = item.getItemWarehouses().stream()
-                        .filter(wh -> wh.getWarehouseName().equals(selectedWarehouse))
-                        .mapToInt(ItemWarehouse::getQuantity)
-                        .sum();
-
+                List<ItemWarehouse> list= item.getWarehouseItemMap().getOrDefault(selectedWarehouse,null);
+                int availableQuantity;
+                if(list==null)
+                {
+                    availableQuantity=0;
+                }
+                else {
+                    availableQuantity = list.stream()
+                            .mapToInt(ItemWarehouse::getQuantity)
+                            .sum();
+                }
                 if (availableQuantity < pickupItemWithImages.getPickupItem().getQuantity()) {
                     allItemsAvailable = false;
                     requestedItemsToMove.add(pickupItemWithImages.getPickupItem());

@@ -13,6 +13,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Spinner;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
@@ -60,8 +61,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 public class AddItemActivity extends AppCompatActivity implements OnMapReadyCallback {
@@ -157,7 +160,22 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
                 // Do nothing
             }
         });
+        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if(imagesToUploadCount==imagesUploadedCount) {
+                    intent = new Intent(AddItemActivity.this, InventoryActivity.class);
+                    startActivity(intent);
+                    finish();
+                }
+                else
+                {
+                    Toast.makeText(AddItemActivity.this, "Images still uploading please wait", Toast.LENGTH_SHORT).show();
+                }
+            }
+        };
 
+        getOnBackPressedDispatcher().addCallback(this, callback);
         NavigationBarManager.getInstance().setupBottomNavigationView(bottomNavigationView, this);
 
         bottomNavigationView.setSelectedItemId(R.id.navigation_inventory);
@@ -364,7 +382,7 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
 
     private void checkAndSaveItem() {
         if (imagesToUploadCount != imagesUploadedCount) {
-            Toast.makeText(this, "Images still uploading please wait", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Images still uploading, please wait", Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -378,12 +396,11 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
             return;
         }
 
-        // Validate that every quantity is more than zero
-        for (ItemWarehouse itemWarehouse : itemWarehouseList) {
-            if (itemWarehouse.getQuantity() <= 0) {
-                Toast.makeText(this, "Each quantity must be greater than zero.", Toast.LENGTH_SHORT).show();
-                return;
-            }
+        // Sort the list by quantity and check if the first item has a quantity less than or equal to zero
+        itemWarehouseList.sort(Comparator.comparingInt(ItemWarehouse::getQuantity));
+        if (!itemWarehouseList.isEmpty() && itemWarehouseList.get(0).getQuantity() <= 0) {
+            Toast.makeText(this, "Each quantity must be greater than zero.", Toast.LENGTH_SHORT).show();
+            return;
         }
 
         String documentId = barcode + "_" + name;
@@ -397,6 +414,7 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
         });
     }
 
+
     private void saveItem(String barcode, String name, String description, String supplier) {
         int totalQuantity = calculateTotalQuantity();
 
@@ -406,10 +424,27 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
         }
 
         Date currentDate = new Date();
-        Item item = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, 0,false);
+
+        // Create warehouseItemMap from itemWarehouseList
+        Map<String, List<ItemWarehouse>> warehouseItemMap = createWarehouseItemMap(itemWarehouseList);
+
+        Item item = new Item(
+                barcode,
+                name,
+                description,
+                totalQuantity,
+                imageAdapter.getImageUrls(),
+                true,
+                supplier,
+                currentDate,
+                itemWarehouseList,  // Retaining the original list
+                warehouseItemMap,   // Adding the new map
+                0,
+                false
+        );
         String documentId = barcode + "_" + name;
 
-        FirebaseAddItem.saveItemToFirestore( item, documentId, new FirebaseAddItem.FirestoreCallback() {
+        FirebaseAddItem.saveItemToFirestore(item, documentId, new FirebaseAddItem.FirestoreCallback() {
             @Override
             public void onSuccess() {
                 Toast.makeText(AddItemActivity.this, "Item saved", Toast.LENGTH_SHORT).show();
@@ -426,6 +461,22 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
                 Toast.makeText(AddItemActivity.this, "Failed to save item: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    private Map<String, List<ItemWarehouse>> createWarehouseItemMap(List<ItemWarehouse> itemWarehouseList) {
+        Map<String, List<ItemWarehouse>> warehouseItemMap = new HashMap<>();
+
+        for (ItemWarehouse itemWarehouse : itemWarehouseList) {
+            String warehouseName = itemWarehouse.getWarehouseName();
+
+            if (!warehouseItemMap.containsKey(warehouseName)) {
+                warehouseItemMap.put(warehouseName, new ArrayList<>());
+            }
+
+            warehouseItemMap.get(warehouseName).add(itemWarehouse);
+        }
+
+        return warehouseItemMap;
     }
 
     private int calculateTotalQuantity() {

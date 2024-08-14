@@ -1,11 +1,13 @@
 package com.mywarehouse.mywarehouse.Activities;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.AppCompatImageButton;
@@ -33,7 +35,6 @@ public class PickupOrdersActivity extends AppCompatActivity {
     private RecyclerView recyclerViewOrders;
     private PickupOrderAdapter pickupOrderAdapter;
     private BottomNavigationView bottomNavigationView;
-    private AppCompatImageButton refreshButton;
     private List<Order> orderList;
     private List<Warehouse> warehouseList;
     private Map<String, List<PickupItemWithImages>> orderPickupItemsMap;
@@ -55,7 +56,6 @@ public class PickupOrdersActivity extends AppCompatActivity {
         spinnerWarehouses = findViewById(R.id.spinner_warehouses);
         recyclerViewOrders = findViewById(R.id.recycler_view_orders);
         bottomNavigationView = findViewById(R.id.bottom_navigation);
-        refreshButton = findViewById(R.id.refresh_button);
 
         orderList = new ArrayList<>();
         warehouseList = new ArrayList<>();
@@ -67,8 +67,17 @@ public class PickupOrdersActivity extends AppCompatActivity {
 
         recyclerViewOrders.setLayoutManager(new LinearLayoutManager(this));
         recyclerViewOrders.setAdapter(pickupOrderAdapter);
+        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                Intent intent = new Intent(PickupOrdersActivity.this, OrdersActivity.class);
+                startActivity(intent);
+                finish();
+            }
+        };
 
-        refreshButton.setOnClickListener(v -> refreshOrders());
+        getOnBackPressedDispatcher().addCallback(this, callback);
+
     }
 
     private void setupNavigationBar() {
@@ -238,12 +247,5 @@ public class PickupOrdersActivity extends AppCompatActivity {
         return -1;
     }
 
-    private void refreshOrders() {
-        orderList.clear();
-        orderPickupItemsMap.clear();
-        orderItemsMap.clear();
-        cachedItemsMap.clear();  // Clear cache
-        spinnerWarehouses.setSelection(0);
-        fetchInitialData();
-    }
+
 }

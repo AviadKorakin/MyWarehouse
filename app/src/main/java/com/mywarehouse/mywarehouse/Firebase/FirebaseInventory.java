@@ -36,4 +36,5 @@ public class FirebaseInventory extends FirebaseManager {
             }
         });
     }
+
 }

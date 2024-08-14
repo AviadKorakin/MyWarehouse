@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
@@ -53,6 +54,17 @@ public class MyPickUpsActivity extends AppCompatActivity {
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> fetchUserPickupsWithListeners()
         );
+
+        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                Intent intent = new Intent(MyPickUpsActivity.this, OrdersActivity.class);
+                startActivity(intent);
+                finish();
+            }
+        };
+
+        getOnBackPressedDispatcher().addCallback(this, callback);
     }
 
     private void launchPickUpActivity(Order order) {
@@ -75,6 +87,7 @@ public class MyPickUpsActivity extends AppCompatActivity {
             @Override
             public void onOrderUpdated(Order order) {
                 int index = findOrderIndexById(order.getOrderId());
+
                 if (index != -1) {
                     pickupList.set(index, order);
                     myPickupsAdapter.notifyItemChanged(index);
@@ -119,6 +132,6 @@ public class MyPickUpsActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         FirebaseMyPickups.removeAllListeners();
-        FirebaseForAdapters.removeAllItemChangeListeners();// Remove listeners when activity is destroyed
+        FirebaseForAdapters.removeAllItemChangeListeners(); // Remove listeners when activity is destroyed
     }
 }

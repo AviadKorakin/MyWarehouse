@@ -1,8 +1,10 @@
 package com.mywarehouse.mywarehouse.Activities;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -42,7 +44,16 @@ public class MyOrdersActivity extends AppCompatActivity {
 
         recyclerViewOrders.setLayoutManager(new LinearLayoutManager(this));
         recyclerViewOrders.setAdapter(myOrdersAdapter);
+        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                Intent intent = new Intent(MyOrdersActivity.this, OrdersActivity.class);
+                startActivity(intent);
+                finish();
+            }
+        };
 
+        getOnBackPressedDispatcher().addCallback(this, callback);
         bottomNavigationView = findViewById(R.id.bottom_navigation);
         setupNavigationBar();
 
@@ -66,7 +77,6 @@ public class MyOrdersActivity extends AppCompatActivity {
 
             @Override
             public void onFailure(Exception e) {
-                Toast.makeText(MyOrdersActivity.this, "Error getting user orders: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
     }

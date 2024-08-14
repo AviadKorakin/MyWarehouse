@@ -85,7 +85,7 @@ public class FirebaseCheckout extends FirebaseManager{
 
                         String logId = "order_creation_" + UUID.randomUUID().toString();
                         String logNotes = createLogNotes(pickupItems);
-                        MyLog log = new MyLog("Order #" + orderId + " is ready for pickup", new Date(), logNotes, createdBy, LogType.ORDER_CREATION);
+                        MyLog log = new MyLog("Order #" + orderId + " is ready for pickup", new Date(), logNotes, MyUser.getInstance().getUser().getName(), LogType.ORDER_CREATION);
 
                         db.collection("logs").document(logId).set(log)
                                 .addOnSuccessListener(documentReference -> callback.onSuccess(orderId))

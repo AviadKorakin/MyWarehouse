@@ -47,15 +47,9 @@ public class FirebaseShowPickUp extends FirebaseManager{
         for (PickupItem pickupItem : pickupItems) {
             String documentId = pickupItem.getBarcode() + "_" + pickupItem.getName();
             fetchItem(documentId, item -> {
-                List<ItemWarehouse> relevantLocations = new ArrayList<>();
-                for (ItemWarehouse itemWarehouse : item.getItemWarehouses()) {
-                    if (itemWarehouse.getWarehouseName().equals(selectedWarehouse)) {
-                        relevantLocations.add(itemWarehouse);
-                    }
-                }
                 pickupItemQuantityMap.put(pickupItem,pickupItem.getQuantity());
                 PickupItemWithImages pickupItemWithImages = new PickupItemWithImages(pickupItem, item.getImageUrls());
-                PickupItemWithImagesAndLocations pickupItemWithImagesAndLocations = new PickupItemWithImagesAndLocations(pickupItemWithImages, relevantLocations);
+                PickupItemWithImagesAndLocations pickupItemWithImagesAndLocations = new PickupItemWithImagesAndLocations(pickupItemWithImages, item.getWarehouseItemMap().get(selectedWarehouse));
                 pickupItemsWithImagesAndLocationsList.add(pickupItemWithImagesAndLocations);
 
                 if (pickupItemsWithImagesAndLocationsList.size() == pickupItems.size()) {

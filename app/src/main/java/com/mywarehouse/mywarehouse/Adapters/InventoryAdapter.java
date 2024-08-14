@@ -3,6 +3,7 @@ package com.mywarehouse.mywarehouse.Adapters;
 import android.animation.ValueAnimator;
 import android.graphics.Color;
 import android.text.TextUtils;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -50,12 +51,7 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
         holder.itemName.setText(item.getName());
         holder.itemQuantity.setText(String.valueOf(item.getTotalQuantity()));
         StringBuilder warehousesNames = new StringBuilder();
-        List<ItemWarehouse> list = item.getItemWarehouses();
-        Set<String> uniqueWarehouseNames = new HashSet<>();
-        for (ItemWarehouse iw : list) {
-            uniqueWarehouseNames.add(iw.getWarehouseName());
-        }
-        warehousesNames.append(TextUtils.join(", ", uniqueWarehouseNames)).append(".");
+        warehousesNames.append(TextUtils.join(", ", item.getWarehouseItemMap().keySet())).append(".");
         holder.itemWarehouse.setText("Click here");
         holder.itemSupplier.setText(item.getSupplier());
         if (!item.isActive()) {

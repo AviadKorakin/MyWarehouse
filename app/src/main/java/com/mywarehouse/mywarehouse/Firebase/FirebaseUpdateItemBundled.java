@@ -121,7 +121,7 @@ public class FirebaseUpdateItemBundled extends FirebaseManager {
 
 
     public static void saveOutOfStockLog(String itemName, String barcode, Date date, String invokedBy, FirestoreCallback callback) {
-        String notes = "Item " + itemName + " is out of stock because it was updated during a warehouse inventory check or it has run out due to orders.";
+        String notes = "Item " + itemName + " is out of stock because it was updated during a warehouse inventory check.";
         MyLog myLog = new MyLog("Item out of stock", date, notes, invokedBy, LogType.OUT_OF_STOCK);
         String logId = "item_out_of_stock_" + barcode + "_" + itemName + "_" + UUID.randomUUID().toString();
 

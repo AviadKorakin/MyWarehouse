@@ -179,11 +179,12 @@ public class FirebaseForAdapters extends FirebaseManager {
                     for (PickupItem pickupItem : pickupItems) {
                         String documentId = pickupItem.getBarcode() + "_" + pickupItem.getName();
                         fetchItem(documentId, item -> {
-                            int availableQuantity = 0;
-                            for (ItemWarehouse itemWarehouse : item.getItemWarehouses()) {
-                                if (itemWarehouse.getWarehouseName().equals(latestOrder.getSelectedWarehouse())) {
-                                    availableQuantity += itemWarehouse.getQuantity();
-                                }
+                            int availableQuantity=0;
+                            List<ItemWarehouse> list = item.getWarehouseItemMap().getOrDefault(latestOrder.getSelectedWarehouse(),null);
+                            if(list!=null) {
+                                availableQuantity = list.stream()
+                                        .mapToInt(ItemWarehouse::getQuantity)
+                                        .sum();
                             }
 
                             if (availableQuantity < pickupItem.getQuantity()) {

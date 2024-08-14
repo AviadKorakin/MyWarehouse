@@ -6,6 +6,7 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
@@ -16,6 +17,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.firebase.Firebase;
 import com.journeyapps.barcodescanner.ScanContract;
 import com.journeyapps.barcodescanner.ScanOptions;
 import com.mywarehouse.mywarehouse.Adapters.InventoryAdapter;
@@ -79,9 +81,15 @@ public class InventoryDetailsActivity extends AppCompatActivity {
         itemMap = new HashMap<>();
         queryCache = new HashMap<>();
         inventoryAdapter = new InventoryAdapter(itemList, item -> {
-            Intent intent = new Intent(InventoryDetailsActivity.this, UpdateItemBundledActivity.class);
-            intent.putExtra("item", item);
-            updateItemLauncher.launch(intent);
+            if(!item.isOnUpdate()) {
+                Intent intent = new Intent(InventoryDetailsActivity.this, UpdateItemBundledActivity.class);
+                intent.putExtra("item", item);
+                updateItemLauncher.launch(intent);
+            }
+            else
+            {
+                Toast.makeText(InventoryDetailsActivity.this, "This item is currently being updated by someone else.", Toast.LENGTH_SHORT).show();
+            }
         });
 
 
@@ -119,7 +127,18 @@ public class InventoryDetailsActivity extends AppCompatActivity {
                 // No action needed here
             }
         });
+        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                Intent intent = new Intent(InventoryDetailsActivity.this, InventoryActivity.class);
+                startActivity(intent);
+                finish();
+            }
+        };
+
+        getOnBackPressedDispatcher().addCallback(this, callback);
     }
+
 
     private void searchItems(String query) {
         List<Item> results = addToQueryCache(query);

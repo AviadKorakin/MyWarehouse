@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
@@ -45,7 +46,16 @@ public class RequestsActivity extends AppCompatActivity {
 
         bottomNavigationView = findViewById(R.id.bottom_navigation);
         setupNavigationBar();
+        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                Intent intent = new Intent(RequestsActivity.this, InventoryActivity.class);
+                startActivity(intent);
+                finish();
+            }
+        };
 
+        getOnBackPressedDispatcher().addCallback(this, callback);
         // Set up the real-time listener for transaction requests
         setupRealtimeTransactionRequestListener();
 

@@ -8,6 +8,7 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
@@ -75,7 +76,16 @@ public class AddNewWarehouseActivity extends AppCompatActivity implements OnMapR
         executorService = Executors.newSingleThreadExecutor();
         // Initialize the FusedLocationProviderClient
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
+        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                Intent intent = new Intent(AddNewWarehouseActivity.this, InventoryActivity.class);
+                startActivity(intent);
+                finish();
+            }
+        };
 
+        getOnBackPressedDispatcher().addCallback(this, callback);
         // Set up the map
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map_fragment);
         if (mapFragment != null) {

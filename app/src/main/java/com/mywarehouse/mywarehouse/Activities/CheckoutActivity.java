@@ -66,7 +66,7 @@ public class CheckoutActivity extends AppCompatActivity {
             @Override
             public void onItemsFetched(List<ItemOrder> items, boolean canOrder, List<DocumentReference> itemsToUpdate) {
                 if (canOrder) {
-                    String createdBy = MyUser.getInstance().getUser().getName();
+                    String createdBy = MyUser.getInstance().getUser().getUserId();
                     FirebaseCheckout.placeOrder(itemsToUpdate, items, createdBy, new FirebaseCheckout.CheckoutCallback() {
                         @Override
                         public void onSuccess(String orderId) {

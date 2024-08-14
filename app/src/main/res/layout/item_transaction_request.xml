@@ -33,7 +33,8 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:textColor="@color/black"
-                android:textSize="16sp"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="14sp"
                 tools:text="Order ID"
                 android:fontFamily="@font/montserrat_bold" />
 
@@ -78,7 +79,8 @@
                 android:id="@+id/created_by"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="16sp"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="14sp"
                 tools:text="Created By"
                 android:textColor="@color/black"
                 android:fontFamily="@font/montserrat_regular" />
@@ -101,7 +103,8 @@
                 android:id="@+id/warehouse"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="16sp"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="14sp"
                 tools:text="Warehouse"
                 android:textColor="@color/black"
                 android:fontFamily="@font/montserrat_regular" />

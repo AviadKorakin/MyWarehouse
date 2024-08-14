@@ -5,6 +5,7 @@ import android.os.Parcelable;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 public class Item implements Parcelable {
     public static final int MIN_LINES_COLLAPSED = 1;
@@ -17,6 +18,7 @@ public class Item implements Parcelable {
     private String supplier;
     private Date lastModified;
     private List<ItemWarehouse> itemWarehouses;
+    private Map<String, List<ItemWarehouse>> warehouseItemMap;
     private int requestedAmount;
     private boolean collapsed;
     private boolean onUpdate;
@@ -25,7 +27,7 @@ public class Item implements Parcelable {
         // Default constructor for Firebase
     }
 
-    public Item(String barcode, String name, String description, int totalQuantity, List<String> imageUrls, boolean active, String supplier, Date lastModified, List<ItemWarehouse> itemWarehouses, int requestedAmount, boolean onUpdate) {
+    public Item(String barcode, String name, String description, int totalQuantity, List<String> imageUrls, boolean active, String supplier, Date lastModified, List<ItemWarehouse> itemWarehouses, Map<String, List<ItemWarehouse>> warehouseItemMap, int requestedAmount, boolean onUpdate) {
         this.barcode = barcode;
         this.name = name;
         this.description = description;
@@ -35,6 +37,7 @@ public class Item implements Parcelable {
         this.supplier = supplier;
         this.lastModified = lastModified;
         this.itemWarehouses = itemWarehouses;
+        this.warehouseItemMap = warehouseItemMap;
         this.requestedAmount = requestedAmount;
         this.collapsed = true;
         this.onUpdate = onUpdate;
@@ -52,6 +55,8 @@ public class Item implements Parcelable {
         itemWarehouses = in.createTypedArrayList(ItemWarehouse.CREATOR);
         requestedAmount = in.readInt();
         onUpdate = in.readByte() != 0;
+        collapsed = in.readByte() != 0;
+        warehouseItemMap = in.readHashMap(ItemWarehouse.class.getClassLoader());
     }
 
     public static final Creator<Item> CREATOR = new Creator<Item>() {
@@ -79,6 +84,8 @@ public class Item implements Parcelable {
         dest.writeTypedList(itemWarehouses);
         dest.writeInt(requestedAmount);
         dest.writeByte((byte) (onUpdate ? 1 : 0));
+        dest.writeByte((byte) (collapsed ? 1 : 0));
+        dest.writeMap(warehouseItemMap);
     }
 
     @Override
@@ -152,6 +159,14 @@ public class Item implements Parcelable {
         this.itemWarehouses = itemWarehouses;
     }
 
+    public Map<String, List<ItemWarehouse>> getWarehouseItemMap() {
+        return warehouseItemMap;
+    }
+
+    public void setWarehouseItemMap(Map<String, List<ItemWarehouse>> warehouseItemMap) {
+        this.warehouseItemMap = warehouseItemMap;
+    }
+
     public boolean isCollapsed() {
         return collapsed;
     }
@@ -183,6 +198,8 @@ public class Item implements Parcelable {
     public void setOnUpdate(boolean onUpdate) {
         this.onUpdate = onUpdate;
     }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -205,6 +222,7 @@ public class Item implements Parcelable {
                 ", supplier='" + supplier + '\'' +
                 ", lastModified=" + lastModified +
                 ", itemWarehouses=" + itemWarehouses +
+                ", warehouseItemMap=" + warehouseItemMap +
                 ", requestedAmount=" + requestedAmount +
                 ", onUpdate=" + onUpdate +
                 '}';

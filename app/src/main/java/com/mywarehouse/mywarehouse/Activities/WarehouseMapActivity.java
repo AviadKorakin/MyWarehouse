@@ -11,6 +11,7 @@ import android.widget.Button;
 import android.widget.Spinner;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
@@ -71,7 +72,16 @@ public class WarehouseMapActivity extends AppCompatActivity implements OnMapRead
         bottomNavigationView = findViewById(R.id.bottom_navigation);
         setupBottomNavigationView();
         spinnerWarehouses = findViewById(R.id.spinner_warehouses);
+        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                    Intent intent = new Intent(WarehouseMapActivity.this, InventoryActivity.class);
+                    startActivity(intent);
+                    finish();
+            }
+        };
 
+        getOnBackPressedDispatcher().addCallback(this, callback);
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map_fragment);
         mapFragment.getMapAsync(this);
 

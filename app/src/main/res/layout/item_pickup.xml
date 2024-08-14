@@ -13,9 +13,9 @@
         <!-- Image RecyclerView Section (Left) -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recycler_view_images"
-            android:layout_width="0dp"
+            android:layout_width="120dp"
             android:layout_height="150dp"
-            android:layout_weight="30"
+            android:layout_weight="1"
             android:orientation="horizontal" />
 
         <!-- Text Section (Center) -->
@@ -50,7 +50,8 @@
                     android:layout_height="wrap_content"
                     android:textColor="@color/quantum_grey500"
                     tools:text="hello"
-                    android:textSize="18sp"
+                    app:autoSizeMinTextSize="14sp"
+                    app:autoSizeTextType="uniform"
                     android:textStyle="bold"
                     android:fontFamily="@font/montserrat_bold" />
             </LinearLayout>
@@ -76,7 +77,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textColor="@color/quantum_grey500"
-                    android:textSize="18sp"
+                    app:autoSizeTextType="uniform"
+                    app:autoSizeMinTextSize="14sp"
                     android:textStyle="italic"
                     android:fontFamily="@font/montserrat_italic" />
             </LinearLayout>
@@ -101,7 +103,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:textColor="@color/quantum_grey500"
-                    android:textSize="18sp"
+                    app:autoSizeTextType="uniform"
+                    app:autoSizeMinTextSize="14sp"
                     android:textStyle="bold"
                     android:fontFamily="@font/montserrat_italic" />
             </LinearLayout>

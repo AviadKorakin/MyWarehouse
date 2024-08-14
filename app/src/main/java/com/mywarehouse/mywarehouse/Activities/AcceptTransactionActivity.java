@@ -29,10 +29,13 @@ import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
 import com.mywarehouse.mywarehouse.Adapters.AcceptTransactionAdapter;
+import com.mywarehouse.mywarehouse.Enums.LogType;
 import com.mywarehouse.mywarehouse.Enums.OrderType;
 import com.mywarehouse.mywarehouse.Firebase.FirebaseAcceptTransaction;
+import com.mywarehouse.mywarehouse.Firebase.FirebaseUpdateItem;
 import com.mywarehouse.mywarehouse.Interfaces.DataLoadCallback;
 import com.mywarehouse.mywarehouse.Models.ItemWarehouse;
+import com.mywarehouse.mywarehouse.Models.MyLog;
 import com.mywarehouse.mywarehouse.Models.Order;
 import com.mywarehouse.mywarehouse.Models.PickupItem;
 import com.mywarehouse.mywarehouse.Models.TransactionRequest;
@@ -40,11 +43,14 @@ import com.mywarehouse.mywarehouse.Models.Warehouse;
 import com.mywarehouse.mywarehouse.Models.WarehouseQuantityRange;
 import com.mywarehouse.mywarehouse.R;
 import com.mywarehouse.mywarehouse.Utilities.CustomNestedScrollView;
+import com.mywarehouse.mywarehouse.Utilities.MyUser;
 import com.mywarehouse.mywarehouse.Utilities.NavigationBarManager;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -344,23 +350,47 @@ public class AcceptTransactionActivity extends AppCompatActivity implements Data
             ItemWarehouse newWarehouseItem = new ItemWarehouse(transactionRequest.getWarehouse(), newLocation, selectedQuantity);
             FirebaseAcceptTransaction.fetchItem(item.getBarcode() + "_" + item.getName(), existingItem -> {
                 if (existingItem != null) {
-                    for (ItemWarehouse warehouseItem : existingItem.getItemWarehouses()) {
+                    boolean itemRemoved = false;
+
+                    // Update or remove the warehouse item in the list
+                    for (Iterator<ItemWarehouse> iterator = existingItem.getItemWarehouses().iterator(); iterator.hasNext(); ) {
+                        ItemWarehouse warehouseItem = iterator.next();
                         if (warehouseItem.equals(sourceWarehouseItem)) {
-                            if(sourceWarehouseItem.getQuantity()==0)
-                            {
-                                existingItem.getItemWarehouses().remove(warehouseItem);
+                            if (sourceWarehouseItem.getQuantity() == 0) {
+                                iterator.remove();
+                                itemRemoved = true;
+                            } else {
+                                warehouseItem.setQuantity(sourceWarehouseItem.getQuantity());
                             }
-                            else warehouseItem.setQuantity(sourceWarehouseItem.getQuantity());
                             break;
                         }
                     }
 
+                    // Update or remove in the map
+                    List<ItemWarehouse> warehouseList = existingItem.getWarehouseItemMap().get(sourceWarehouseItem.getWarehouseName());
+                    if (warehouseList != null) {
+                        if (itemRemoved) {
+                            warehouseList.remove(sourceWarehouseItem);
+                        } else {
+                            for (ItemWarehouse warehouseItem : warehouseList) {
+                                if (warehouseItem.equals(sourceWarehouseItem)) {
+                                    warehouseItem.setQuantity(sourceWarehouseItem.getQuantity());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // Add the new warehouse item to the list and map
                     existingItem.getItemWarehouses().add(newWarehouseItem);
+                    existingItem.getWarehouseItemMap().computeIfAbsent(transactionRequest.getWarehouse(), k -> new ArrayList<>()).add(newWarehouseItem);
                     existingItem.setLastModified(new Date());
+                    saveTransferLog(item, sourceWarehouseItem, newWarehouseItem);
                     FirebaseAcceptTransaction.updateItem(existingItem);
                 }
             });
         }
+
         FirebaseAcceptTransaction.fetchOrder(transactionRequest.getOrderId(), new FirebaseAcceptTransaction.OrderCallback() {
             @Override
             public void onCallback(Order order) {
@@ -374,7 +404,7 @@ public class AcceptTransactionActivity extends AppCompatActivity implements Data
                                 public void onSuccess() {
                                     Toast.makeText(AcceptTransactionActivity.this, "Transaction accepted and updated.", Toast.LENGTH_SHORT).show();
                                     setResult(RESULT_OK);
-                                    endSucessfully=true;
+                                    endSucessfully = true;
                                     finish();
                                 }
 
@@ -401,6 +431,58 @@ public class AcceptTransactionActivity extends AppCompatActivity implements Data
             }
         });
     }
+    private void saveTransferLog(PickupItem item, ItemWarehouse sourceWarehouseItem, ItemWarehouse newWarehouseItem) {
+        String invokedBy = MyUser.getInstance().getUser().getName();
+        StringBuilder notes = new StringBuilder("Item ")
+                .append(item.getName())
+                .append(" has been transferred.\n");
+
+        // Include source warehouse details
+        notes.append("Source Warehouse: ")
+                .append(sourceWarehouseItem.getWarehouseName())
+                .append(" - Location: [Lat: ")
+                .append(sourceWarehouseItem.getLocation().latitude)
+                .append(", Lng: ")
+                .append(sourceWarehouseItem.getLocation().longitude)
+                .append("]\n")
+                .append("Original Quantity: ")
+                .append(sourceWarehouseItem.getQuantity() + newWarehouseItem.getQuantity())
+                .append(", Transferred Quantity: ")
+                .append(newWarehouseItem.getQuantity())
+                .append(", Remaining Quantity: ")
+                .append(sourceWarehouseItem.getQuantity())
+                .append("\n");
+
+        // Include destination warehouse details
+        notes.append("Destination Warehouse: ")
+                .append(newWarehouseItem.getWarehouseName())
+                .append(" - Location: [Lat: ")
+                .append(newWarehouseItem.getLocation().latitude)
+                .append(", Lng: ")
+                .append(newWarehouseItem.getLocation().longitude)
+                .append("]\n")
+                .append("New Quantity: ")
+                .append(newWarehouseItem.getQuantity())
+                .append("\n");
+
+        MyLog transferLog = new MyLog("Warehouse Transfer", new Date(), notes.toString(), invokedBy, LogType.ITEM_MODIFICATION);
+
+        FirebaseUpdateItem.saveLog(transferLog, new FirebaseUpdateItem.FirestoreCallback<Void>() {
+            @Override
+            public void onSuccess(Void result) {
+                // Log saved successfully
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Toast.makeText(AcceptTransactionActivity.this, "Failed to save transfer log: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+
+
+
 
     @Override
     protected void onDestroy() {
@@ -410,7 +492,10 @@ public class AcceptTransactionActivity extends AppCompatActivity implements Data
     @Override
     protected void onPause() {
         super.onPause();
-        if(!endSucessfully)unlockRequest();
+        if(!endSucessfully){
+            unlockRequest();
+        }
+        else unlockItems();
     }
 
     private void unlockRequest() {

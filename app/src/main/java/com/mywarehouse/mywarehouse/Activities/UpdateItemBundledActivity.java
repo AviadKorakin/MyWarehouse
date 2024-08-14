@@ -7,13 +7,16 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.view.GestureDetector;
 import android.view.LayoutInflater;
+import android.view.MotionEvent;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
@@ -55,9 +58,12 @@ import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 public class UpdateItemBundledActivity extends AppCompatActivity implements OnMapReadyCallback {
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1;
@@ -143,7 +149,6 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
         imageAdapter = new ImageAdapter(this);
         recyclerImages.setAdapter(imageAdapter);
         addedImages = new ArrayList<>();
-
         buttonUpdateItem.setOnClickListener(v -> checkAndUpdateItem());
 
 
@@ -168,15 +173,29 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map_fragment);
         assert mapFragment != null;
         mapFragment.getMapAsync(this);
+        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if(imagesToUploadCount==imagesUploadedCount) {
+                    finish();
+                }
+                else
+                {
+                    Toast.makeText(UpdateItemBundledActivity.this, "Images still uploading please wait", Toast.LENGTH_SHORT).show();
+                }
+            }
+        };
 
+        getOnBackPressedDispatcher().addCallback(this, callback);
         recyclerWarehouses.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false));
         warehouseAdapter = new WarehouseAdapter(itemWarehouseList);
         recyclerWarehouses.setAdapter(warehouseAdapter);
+
     }
 
 
 
-    private void populateFields(Item item) {
+        private void populateFields(Item item) {
         inputBarcode.setText(item.getBarcode());
         inputName.setText(item.getName());
         inputDescription.setText(item.getDescription());
@@ -306,6 +325,7 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             result -> {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null && result.getData().getData() != null) {
                     Uri imageUri = result.getData().getData();
+                    imagesToUploadCount++;
                     imageAdapter.addDefaultImage(UUID.randomUUID().toString(), Uri.parse("android.resource://" + getPackageName() + "/" + R.drawable.loading_gif)); // Add default image with unique ID
                     uploadImageToFirebase(imageUri, imageAdapter.getLastItemId());
                 }
@@ -398,20 +418,25 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             Toast.makeText(this, "Images still uploading please wait", Toast.LENGTH_SHORT).show();
             return;
         }
+
         String description = inputDescription.getText() != null ? inputDescription.getText().toString().trim() : "";
         String supplier = inputSupplier.getText() != null ? inputSupplier.getText().toString().trim() : "";
 
-        if (description.isEmpty() ||  supplier.isEmpty()) {
+        if (description.isEmpty() || supplier.isEmpty()) {
             Toast.makeText(this, "Please fill in all fields.", Toast.LENGTH_SHORT).show();
             return;
         }
-        for (ItemWarehouse itemWarehouse : itemWarehouseList) {
-            if (itemWarehouse.getQuantity() <= 0) {
+
+        // Sort the list by quantity in ascending order and check if any quantity is zero or negative
+        if(!itemWarehouseList.isEmpty()) {
+            itemWarehouseList.sort(Comparator.comparingInt(ItemWarehouse::getQuantity));
+
+            if (itemWarehouseList.get(0).getQuantity() <= 0) {
                 Toast.makeText(this, "Each quantity must be greater than zero.", Toast.LENGTH_SHORT).show();
                 return;
             }
         }
-        saveItem(currentItem.getBarcode(), currentItem.getName(),description,supplier);
+        saveItem(currentItem.getBarcode(), currentItem.getName(), description, supplier);
     }
 
     private void saveItem(String barcode, String name, String description, String supplier) {
@@ -421,6 +446,9 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             Toast.makeText(this, "Total quantity must be a positive number.", Toast.LENGTH_SHORT).show();
             return;
         }
+
+        Map<String, List<ItemWarehouse>> warehouseItemMap = createWarehouseItemMap(itemWarehouseList);
+
         if (totalQuantity == 0) {
             AlertDialog.Builder builder = new AlertDialog.Builder(this, R.style.CustomAlertDialogTheme);
             LayoutInflater inflater = getLayoutInflater();
@@ -429,7 +457,7 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             builder.setView(dialogView)
                     .setPositiveButton("Yes", (dialog, which) -> {
                         Date currentDate = new Date();
-                        Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, currentItem.getRequestedAmount(),false);
+                        Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, warehouseItemMap, currentItem.getRequestedAmount(), false);
 
                         FirebaseUpdateItemBundled.saveLog(updatedItem, currentItem, MyUser.getInstance().getUser().getName(), new FirebaseUpdateItemBundled.FirestoreCallback() {
                             @Override
@@ -475,7 +503,7 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             alertDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(ContextCompat.getColor(this, R.color.white));
         } else {
             Date currentDate = new Date();
-            Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, currentItem.getRequestedAmount(),false);
+            Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, warehouseItemMap, currentItem.getRequestedAmount(), false);
 
             FirebaseUpdateItemBundled.saveLog(updatedItem, currentItem, MyUser.getInstance().getUser().getName(), new FirebaseUpdateItemBundled.FirestoreCallback() {
                 @Override
@@ -504,6 +532,23 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             });
         }
     }
+
+    private Map<String, List<ItemWarehouse>> createWarehouseItemMap(List<ItemWarehouse> itemWarehouseList) {
+        Map<String, List<ItemWarehouse>> warehouseItemMap = new HashMap<>();
+
+        for (ItemWarehouse itemWarehouse : itemWarehouseList) {
+            String warehouseName = itemWarehouse.getWarehouseName();
+
+            if (!warehouseItemMap.containsKey(warehouseName)) {
+                warehouseItemMap.put(warehouseName, new ArrayList<>());
+            }
+
+            warehouseItemMap.get(warehouseName).add(itemWarehouse);
+        }
+
+        return warehouseItemMap;
+    }
+
 
     private int calculateTotalQuantity() {
         int totalQuantity = 0;
@@ -635,12 +680,6 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
 
         }
         urls.clear();
-    }
-    @Override
-    protected  void onPause() {
-
-        super.onPause();
-        finish();
     }
     @Override
     protected void onDestroy() {

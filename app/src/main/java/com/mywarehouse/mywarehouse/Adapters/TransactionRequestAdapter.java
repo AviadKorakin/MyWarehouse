@@ -3,6 +3,7 @@ package com.mywarehouse.mywarehouse.Adapters;
 import android.animation.Animator;
 import android.animation.ValueAnimator;
 import android.content.Context;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -28,6 +29,7 @@ import com.mywarehouse.mywarehouse.R;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -139,33 +141,44 @@ public class TransactionRequestAdapter extends RecyclerView.Adapter<TransactionR
         }
         AtomicInteger itemsChecked = new AtomicInteger(0);// To keep track of checked items
         AtomicInteger anyItemOnUpdate = new AtomicInteger(0);
-        AtomicInteger maxQuantityItem = new AtomicInteger(0);
+        List<String> PickupItems = Collections.synchronizedList(new ArrayList<>());
         List<PickupItem> missingItems = Collections.synchronizedList(new ArrayList<>());
         for (PickupItem requestedItem : request.getRequestedItemsToMove()) {
             String documentId = requestedItem.getBarcode() + "_" + requestedItem.getName();
             FirebaseForAdapters.fetchItem(documentId, item -> {
-                boolean itemAvailable = false;
                 int calculatedQuantityonWarehouse = 0;
+                int maxQuantityItem= 0;
                 if (item.isOnUpdate()) anyItemOnUpdate.set(-1);
+                List<ItemWarehouse> list = item.getWarehouseItemMap().getOrDefault(request.getWarehouse(),null);
+                maxQuantityItem = item.getItemWarehouses().stream()
+                        .filter(warehouse -> !warehouse.getWarehouseName().equals(request.getWarehouse()))
+                        .mapToInt(ItemWarehouse::getQuantity)
+                        .max()
+                        .orElse(0);
+                if(list==null)
+                {
 
-                for (ItemWarehouse itemWarehouse : item.getItemWarehouses()) {
-                    if (itemWarehouse.getWarehouseName().equals(request.getWarehouse())) {
-                        if (itemWarehouse.getQuantity() >= requestedItem.getQuantity()) {
-                            itemAvailable = true;
-                            break;
+                    if (maxQuantityItem < requestedItem.getQuantity()) {
+                        PickupItems.add(requestedItem.getName());
+                    } else missingItems.add(requestedItem);
+                }
+                else {
+                    list.sort(Comparator.comparingInt(ItemWarehouse::getQuantity));
+                    if (requestedItem.getQuantity() > list.get(list.size() - 1).getQuantity()) {
+                        calculatedQuantityonWarehouse = list.stream()
+                                .mapToInt(ItemWarehouse::getQuantity)
+                                .sum();
+                        if(calculatedQuantityonWarehouse < requestedItem.getQuantity()) {
+                            requestedItem.setQuantity(requestedItem.getQuantity() - calculatedQuantityonWarehouse);
+                            if (maxQuantityItem < requestedItem.getQuantity()) {
+                                PickupItems.add(requestedItem.getName());
+                            } else missingItems.add(requestedItem);
+                            ;
                         }
-                        else
-                        {
-                            calculatedQuantityonWarehouse=(calculatedQuantityonWarehouse+itemWarehouse.getQuantity());
-                        }
-                    } else {
-                        maxQuantityItem.set(Math.max(maxQuantityItem.get(), itemWarehouse.getQuantity()));
+
                     }
                 }
-                if (!itemAvailable && calculatedQuantityonWarehouse<requestedItem.getQuantity()) {
-                    requestedItem.setQuantity(requestedItem.getQuantity()-calculatedQuantityonWarehouse);
-                    missingItems.add(requestedItem);
-                }
+
 
                 // Increment the checked items count
                 if (itemsChecked.incrementAndGet() == request.getRequestedItemsToMove().size()) {
@@ -173,8 +186,8 @@ public class TransactionRequestAdapter extends RecyclerView.Adapter<TransactionR
                         Toast.makeText(context, "One or more of the items are on update", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    if (!itemAvailable && maxQuantityItem.get() < requestedItem.getQuantity()) {
-                        Toast.makeText(context, "The Item " + requestedItem.getName() + " quantity requests special modifications do it manually", Toast.LENGTH_LONG).show();
+                    if (!PickupItems.isEmpty()) {
+                        Toast.makeText(context, "The Items " + TextUtils.join(", ", PickupItems)+ " quantities requests special modifications do it manually", Toast.LENGTH_LONG).show();
                         return;
                     }
                     if (missingItems.isEmpty()) {

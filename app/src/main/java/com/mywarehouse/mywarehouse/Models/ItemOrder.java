@@ -13,7 +13,7 @@ public class ItemOrder extends Item implements Parcelable {
     }
 
     public ItemOrder(Item item, int selectedQuantity) {
-        super(item.getBarcode(), item.getName(), item.getDescription(), item.getTotalQuantity(), item.getImageUrls(), item.isActive(), item.getSupplier(), item.getLastModified(), item.getItemWarehouses(),item.getRequestedAmount(),item.isOnUpdate());
+        super(item.getBarcode(), item.getName(), item.getDescription(), item.getTotalQuantity(), item.getImageUrls(), item.isActive(), item.getSupplier(), item.getLastModified(), item.getItemWarehouses(),item.getWarehouseItemMap(),item.getRequestedAmount(),item.isOnUpdate());
         this.selectedQuantity = selectedQuantity;
     }
 

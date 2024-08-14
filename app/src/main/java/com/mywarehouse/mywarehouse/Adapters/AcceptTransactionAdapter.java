@@ -25,11 +25,11 @@ import com.mywarehouse.mywarehouse.Models.WarehouseQuantityRange;
 import com.mywarehouse.mywarehouse.R;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class AcceptTransactionAdapter extends RecyclerView.Adapter<AcceptTransactionAdapter.AcceptTransactionViewHolder> {
 
@@ -114,16 +114,17 @@ public class AcceptTransactionAdapter extends RecyclerView.Adapter<AcceptTransac
                 });
 
                 List<WarehouseQuantityRange> warehouseQuantities = new ArrayList<>();
-                int warehouseCounter = 1;
+                AtomicInteger warehouseCounter = new AtomicInteger(1);
                 List<ItemWarehouse> sortedList=item.getItemWarehouses();
                 Collections.sort(sortedList);
-                for (ItemWarehouse itemWarehouse : sortedList) {
-                    if (itemWarehouse.getQuantity() >= pickupItem.getQuantity()) {
-                        String uniqueWarehouseName = "(" + warehouseCounter++ + ")" + itemWarehouse.getWarehouseName();
-                        WarehouseKey warehouseKey = new WarehouseKey(uniqueWarehouseName, itemWarehouse);
-                        warehouseQuantities.add(new WarehouseQuantityRange(warehouseKey, pickupItem.getQuantity(), itemWarehouse.getQuantity()));
-                    }
-                }
+                sortedList.stream()
+                        .filter(itemWarehouse -> itemWarehouse.getQuantity() >= pickupItem.getQuantity() &&
+                                !itemWarehouse.getWarehouseName().equals(transactionRequest.getWarehouse()))
+                        .forEach(itemWarehouse -> {
+                            String uniqueWarehouseName = "(" + warehouseCounter.getAndIncrement() + ")" + itemWarehouse.getWarehouseName();
+                            WarehouseKey warehouseKey = new WarehouseKey(uniqueWarehouseName, itemWarehouse);
+                            warehouseQuantities.add(new WarehouseQuantityRange(warehouseKey, pickupItem.getQuantity(), itemWarehouse.getQuantity()));
+                        });
                 warehouseQuantityMap.put(pickupItem, warehouseQuantities);
                 itemImagesMap.put(pickupItem, item.getImageUrls());
 

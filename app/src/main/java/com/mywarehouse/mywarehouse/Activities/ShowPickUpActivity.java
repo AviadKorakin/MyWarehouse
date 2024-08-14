@@ -32,9 +32,12 @@ import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.material.button.MaterialButton;
 import com.mywarehouse.mywarehouse.Adapters.ShowPickUpAdapter;
+import com.mywarehouse.mywarehouse.Enums.LogType;
 import com.mywarehouse.mywarehouse.Enums.OrderType;
 import com.mywarehouse.mywarehouse.Firebase.FirebaseShowPickUp;
+import com.mywarehouse.mywarehouse.Firebase.FirebaseUpdateItem;
 import com.mywarehouse.mywarehouse.Models.ItemWarehouse;
+import com.mywarehouse.mywarehouse.Models.MyLog;
 import com.mywarehouse.mywarehouse.Models.Order;
 import com.mywarehouse.mywarehouse.Models.PickupItem;
 import com.mywarehouse.mywarehouse.Models.PickupItemWithImagesAndLocations;
@@ -44,6 +47,7 @@ import com.mywarehouse.mywarehouse.Utilities.CustomNestedScrollView;
 import com.mywarehouse.mywarehouse.Utilities.MyUser;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -371,40 +375,81 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
             }
         });
     }
-
     private void updateItemQuantity(PickupItem pickupItem) {
         FirebaseShowPickUp.fetchItem(pickupItem.getBarcode() + "_" + pickupItem.getName(), item -> {
+            // Create a new list to track updated warehouses
+            List<ItemWarehouse> updatedWarehouses = new ArrayList<>();
+
+            // Get the warehouse name to be updated
+            String selectedWarehouseName = order.getSelectedWarehouse();
+
+            // Iterator to go through the existing warehouses
             Iterator<ItemWarehouse> iterator = item.getItemWarehouses().iterator();
 
             while (iterator.hasNext()) {
                 ItemWarehouse warehouse = iterator.next();
                 int newQuantity = itemWarehouseMarkerQuantityMap.getOrDefault(warehouse, -1);
-
-                if (newQuantity == -1) {
-                    warehouse.setQuantity(warehouse.getQuantity());
-                } else {
-                    int updatedQuantity = warehouse.getQuantity() - newQuantity;
-                    if (updatedQuantity <= 0) {
-                        // Remove the warehouse from the list if the quantity reaches zero or below
-                        iterator.remove();
+                if (warehouse.getWarehouseName().equals(order.getSelectedWarehouse())) {
+                    if (newQuantity != -1) {
+                        int updatedQuantity = warehouse.getQuantity() - newQuantity;
+                        if (updatedQuantity <= 0) {
+                            // Remove the warehouse from the list if the quantity reaches zero or below
+                            iterator.remove();
+                        } else {
+                            warehouse.setQuantity(updatedQuantity);
+                            updatedWarehouses.add(warehouse);
+                        }
                     } else {
-                        warehouse.setQuantity(updatedQuantity);
+                        updatedWarehouses.add(warehouse);
                     }
                 }
             }
-                item.setTotalQuantity(item.getTotalQuantity() - pickupItem.getQuantity());
-                item.setRequestedAmount(item.getRequestedAmount() - pickupItem.getQuantity());
-                FirebaseShowPickUp.updateItem(item, new FirebaseShowPickUp.FirestoreCallback() {
-                    @Override
-                    public void onSuccess() {
-                        // Item quantity updated
-                    }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        // Failed to update item quantity
-                    }
-                });
+            // Update the warehouse item map for the selected warehouse
+            item.getWarehouseItemMap().put(selectedWarehouseName, updatedWarehouses);
+
+            // Update the item's total quantity and requested amount
+            int updatedTotalQuantity = item.getTotalQuantity() - pickupItem.getQuantity();
+            item.setTotalQuantity(updatedTotalQuantity);
+            item.setRequestedAmount(item.getRequestedAmount() - pickupItem.getQuantity());
+
+            // Check if the item is out of stock due to orders
+            if (updatedTotalQuantity <= 0 && pickupItem.getQuantity() > 0) {
+                saveOutOfStockLog(pickupItem.getName(), pickupItem.getBarcode(), new Date());
+            }
+
+            // Save the updated item
+            FirebaseShowPickUp.updateItem(item, new FirebaseShowPickUp.FirestoreCallback() {
+                @Override
+                public void onSuccess() {
+                    // Item quantity updated successfully
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // Failed to update item quantity
+                }
+            });
         });
     }
+
+    private void saveOutOfStockLog(String itemName, String barcode, Date date) {
+        String invokedBy = MyUser.getInstance().getUser().getName();
+        String notes = "Item " + itemName + " is out of stock due to fulfilling an order.";
+        MyLog myLog = new MyLog("Item out of stock", date, notes, invokedBy, LogType.OUT_OF_STOCK);
+
+        FirebaseUpdateItem.saveLog(myLog, new FirebaseUpdateItem.FirestoreCallback<Void>() {
+            @Override
+            public void onSuccess(Void result) {
+                // Log saved successfully
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Toast.makeText(ShowPickUpActivity.this, "Failed to save log: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+
 }
