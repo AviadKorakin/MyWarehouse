@@ -28,6 +28,40 @@ Welcome to the MyWarehouse project! This Android application is designed to stre
 ### 🧩 Activity Launcher API
 - **Android Activity Launcher API:** MyWarehouse leverages the new Android Activity Launcher API for efficient and streamlined activity management. This API enhances the application's navigation, making it faster and more reliable.
 
+## Screenshots
+
+<p align="center">
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-15-44-30-49_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 1" width="200"/>
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-15-45-05-75_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 2" width="200"/>
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-15-45-08-26_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 3" width="200"/>
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-15-45-46-66_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 4" width="200"/>
+</p>
+<p align="center">
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-15-45-51-30_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 5" width="200"/>
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-15-45-55-64_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 6" width="200"/>
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-15-45-59-90_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 7" width="200"/>
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-15-46-07-66_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 8" width="200"/>
+</p>
+<p align="center">
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-15-46-14-27_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 9" width="200"/>
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-15-46-23-27_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 10" width="200"/>
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-15-46-31-69_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 11" width="200"/>
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-15-46-44-52_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 12" width="200"/>
+</p>
+<p align="center">
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-15-46-56-99_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 13" width="200"/>
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-15-47-06-23_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 14" width="200"/>
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-16-05-28-72_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 15" width="200"/>
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-16-05-40-23_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 16" width="200"/>
+</p>
+<p align="center">
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-16-08-27-69_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 17" width="200"/>
+  <img src="./MyWarehouseImages/Screenshot_2024-08-14-16-08-43-31_9e67d064f870acf7f05af35bff567071.jpg" alt="Screenshot 18" width="200"/>
+</p>
+
+## Demo Video
+
+[![MyWarehouse Demo](https://img.youtube.com/vi/yourvideoid/0.jpg)](https://www.youtube.com/watch?v=yourvideoid)
 
 ## Contact
 
