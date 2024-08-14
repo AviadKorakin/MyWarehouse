@@ -61,7 +61,12 @@ Welcome to the MyWarehouse project! This Android application is designed to stre
 
 ## Demo Video
 
-[![MyWarehouse Demo](https://img.youtube.com/vi/yourvideoid/0.jpg)](https://www.youtube.com/watch?v=yourvideoid)
+<p align="center">
+  <video width="600" controls>
+    <source src="./MyWarehouseVideos/MyWarehouseVideo.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+</p>
 
 ## Contact
 
