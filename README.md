@@ -70,3 +70,21 @@ Welcome to the MyWarehouse project! This Android application is designed to stre
 ## Contact
 
 For any inquiries or feedback, feel free to reach out via [email](mailto:aviad825@gmail.com).
+
+---
+
+## License and Copyright
+
+© 2024 Aviad Korakin. All rights reserved.
+
+This project is the intellectual property of Aviad Korakin. Unauthorized copying, modification, distribution, or usage of this project, in whole or in part, without express permission from the author is strictly prohibited.
+
+For academic or personal review purposes, please attribute credit to Aviad Korakin and provide a link to the original repository.
+
+This project is intended solely for portfolio demonstration and must not be reproduced or repurposed without explicit authorization. If you are interested in collaborating or using parts of this project for educational purposes, please contact me directly.
+
+---
+
+## Note to Recruiters
+
+Please be aware that this project is part of my professional portfolio and is not to be duplicated or repurposed. If you are interested in my work or wish to discuss potential employment opportunities, feel free to contact me via the provided email. I am open to discussing the details and contributing to exciting new projects.
