@@ -5,7 +5,6 @@ import com.mywarehouse.mywarehouse.Models.MyLog;
 import com.mywarehouse.mywarehouse.Models.Warehouse;
 
 import java.util.List;
-import java.util.UUID;
 
 public class FirebaseUpdateItem extends  FirebaseManager{
 
@@ -38,8 +37,7 @@ public class FirebaseUpdateItem extends  FirebaseManager{
     }
 
     public static void saveLog(MyLog log, FirestoreCallback<Void> callback) {
-        String logId = "log_" + UUID.randomUUID().toString();
-        db.collection("logs").document(logId).set(log)
+        db.collection("logs").document(log.getId()).set(log)
                 .addOnSuccessListener(aVoid -> callback.onSuccess(null))
                 .addOnFailureListener(callback::onFailure);
     }

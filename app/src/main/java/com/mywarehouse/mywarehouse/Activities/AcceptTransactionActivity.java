@@ -2,16 +2,14 @@ package com.mywarehouse.mywarehouse.Activities;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.drawable.Drawable;
+
 import android.os.Bundle;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
+
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -19,14 +17,13 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.BitmapDescriptor;
+
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolygonOptions;
-import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
 import com.mywarehouse.mywarehouse.Adapters.AcceptTransactionAdapter;
 import com.mywarehouse.mywarehouse.Enums.LogType;
@@ -44,15 +41,14 @@ import com.mywarehouse.mywarehouse.Models.WarehouseQuantityRange;
 import com.mywarehouse.mywarehouse.R;
 import com.mywarehouse.mywarehouse.Utilities.CustomNestedScrollView;
 import com.mywarehouse.mywarehouse.Utilities.MyUser;
-import com.mywarehouse.mywarehouse.Utilities.NavigationBarManager;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class AcceptTransactionActivity extends AppCompatActivity implements DataLoadCallback, OnMapReadyCallback {
 
@@ -465,7 +461,7 @@ public class AcceptTransactionActivity extends AppCompatActivity implements Data
                 .append(newWarehouseItem.getQuantity())
                 .append("\n");
 
-        MyLog transferLog = new MyLog("Warehouse Transfer", new Date(), notes.toString(), invokedBy, LogType.ITEM_MODIFICATION);
+        MyLog transferLog = new MyLog(UUID.randomUUID().toString(),"Warehouse Transfer", new Date(), notes.toString(), invokedBy, LogType.ITEM_MODIFICATION);
 
         FirebaseUpdateItem.saveLog(transferLog, new FirebaseUpdateItem.FirestoreCallback<Void>() {
             @Override

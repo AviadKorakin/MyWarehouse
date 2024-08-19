@@ -1,75 +1,81 @@
 package com.mywarehouse.mywarehouse.Firebase;
 
-import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.EventListener;
-import com.google.firebase.firestore.FirebaseFirestoreException;
-import com.google.firebase.firestore.QuerySnapshot;
+import com.google.firebase.firestore.DocumentChange;
+import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
-import com.mywarehouse.mywarehouse.Enums.LogType;
+import com.google.firebase.firestore.AggregateQuery;
+import com.google.firebase.firestore.AggregateQuerySnapshot;
+import com.google.firebase.firestore.AggregateSource;
 import com.mywarehouse.mywarehouse.Models.MyLog;
 
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
+import java.util.HashMap;
+import java.util.Map;
 
 public class FirebaseLogs extends FirebaseManager {
 
+    private static ListenerRegistration logListener;
+
     public interface LogsCallback {
-        void onCallback(List<MyLog> logs);
+        void onLogAdded(MyLog log);
+        void onLogModified(MyLog log);
+        void onLogRemoved(String logId);
         void onFailure(Exception e);
     }
 
+    public interface LogCountCallback {
+        void onLogCountFetched(int count);
+        void onFailure(Exception e);
+    }
+
+    public static void fetchTotalLogCount(LogCountCallback callback) {
+        AggregateQuery countQuery = db.collection("logs").count();
+        countQuery.get(AggregateSource.SERVER).addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                AggregateQuerySnapshot snapshot = task.getResult();
+                callback.onLogCountFetched((int) snapshot.getCount());
+            } else {
+                callback.onFailure(task.getException());
+            }
+        });
+    }
+
     public static void listenToLogs(LogsCallback callback) {
-        db.collection("logs")
+        if (logListener != null) {
+            logListener.remove(); // Remove any existing listener to avoid duplicates
+        }
+
+
+        logListener = db.collection("logs")
                 .orderBy("date", Query.Direction.DESCENDING)
-                .addSnapshotListener(new EventListener<QuerySnapshot>() {
-                    @Override
-                    public void onEvent(QuerySnapshot snapshots, FirebaseFirestoreException e) {
-                        if (e != null) {
-                            callback.onFailure(e);
-                            return;
-                        }
-                        if (snapshots != null) {
-                            List<MyLog> logs = new ArrayList<>();
-                            for (DocumentSnapshot document : snapshots.getDocuments()) {
-                                MyLog log = document.toObject(MyLog.class);
-                                if (log != null) {
-                                    logs.add(log);
-                                }
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) {
+                        callback.onFailure(e);
+                        return;
+                    }
+
+                    if (snapshots != null) {
+                        for (DocumentChange dc : snapshots.getDocumentChanges()) {
+                            MyLog log = dc.getDocument().toObject(MyLog.class);
+                            switch (dc.getType()) {
+                                case ADDED:
+                                    callback.onLogAdded(log);
+                                    break;
+                                case MODIFIED:
+                                    callback.onLogModified(log);
+                                    break;
+                                case REMOVED:
+                                    callback.onLogRemoved(dc.getDocument().getId());
+                                    break;
                             }
-                            callback.onCallback(logs);
                         }
                     }
                 });
     }
 
-    public static void filterLogsByDateAndType(Date date, LogType type, LogsCallback callback) {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
-        String dateString = sdf.format(date);
-
-        db.collection("logs")
-                .orderBy("date", Query.Direction.DESCENDING)
-                .addSnapshotListener(new EventListener<QuerySnapshot>() {
-                    @Override
-                    public void onEvent(QuerySnapshot snapshots, FirebaseFirestoreException e) {
-                        if (e != null) {
-                            callback.onFailure(e);
-                            return;
-                        }
-                        if (snapshots != null) {
-                            List<MyLog> filteredLogs = new ArrayList<>();
-                            for (DocumentSnapshot document : snapshots.getDocuments()) {
-                                MyLog log = document.toObject(MyLog.class);
-                                if (log != null && sdf.format(log.getDate()).equals(dateString) &&
-                                        (type == LogType.ALL || log.getType() == type)) {
-                                    filteredLogs.add(log);
-                                }
-                            }
-                            callback.onCallback(filteredLogs);
-                        }
-                    }
-                });
+    public static void removeAllListeners() {
+        if (logListener != null) {
+            logListener.remove();
+            logListener = null;
+        }
     }
 }

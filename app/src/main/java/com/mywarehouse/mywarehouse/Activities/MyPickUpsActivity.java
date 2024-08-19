@@ -2,6 +2,8 @@ package com.mywarehouse.mywarehouse.Activities;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.View;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
@@ -14,7 +16,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.mywarehouse.mywarehouse.Adapters.MyPickupsAdapter;
-import com.mywarehouse.mywarehouse.Firebase.FirebaseForAdapters;
 import com.mywarehouse.mywarehouse.Firebase.FirebaseMyPickups;
 import com.mywarehouse.mywarehouse.Models.Order;
 import com.mywarehouse.mywarehouse.R;
@@ -30,7 +31,11 @@ public class MyPickUpsActivity extends AppCompatActivity {
     private MyPickupsAdapter myPickupsAdapter;
     private List<Order> pickupList;
     private BottomNavigationView bottomNavigationView;
+    private ProgressBar progressBar;
     private ActivityResultLauncher<Intent> pickUpActivityLauncher;
+    private int totalPickupCount = -1;
+    private int loadedPickupCount = 0;
+    private boolean isInitialLoadComplete = false;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -38,17 +43,10 @@ public class MyPickUpsActivity extends AppCompatActivity {
         setContentView(R.layout.activity_my_pick_ups);
         overridePendingTransition(R.anim.dark_screen, R.anim.light_screen);
 
-        recyclerViewPickups = findViewById(R.id.recycler_view_pickups);
-        pickupList = new ArrayList<>();
-        myPickupsAdapter = new MyPickupsAdapter(this, pickupList, this::launchPickUpActivity);
-
-        recyclerViewPickups.setLayoutManager(new LinearLayoutManager(this));
-        recyclerViewPickups.setAdapter(myPickupsAdapter);
-
-        bottomNavigationView = findViewById(R.id.bottom_navigation);
+        initViews();
         setupNavigationBar();
-
-        fetchUserPickupsWithListeners();
+        showLoading();
+        setupListeners();
 
         pickUpActivityLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
@@ -67,6 +65,27 @@ public class MyPickUpsActivity extends AppCompatActivity {
         getOnBackPressedDispatcher().addCallback(this, callback);
     }
 
+    private void initViews() {
+        recyclerViewPickups = findViewById(R.id.recycler_view_pickups);
+        bottomNavigationView = findViewById(R.id.bottom_navigation);
+        progressBar = findViewById(R.id.progress_bar);
+
+        pickupList = new ArrayList<>();
+        myPickupsAdapter = new MyPickupsAdapter(this, pickupList, this::launchPickUpActivity);
+
+        recyclerViewPickups.setLayoutManager(new LinearLayoutManager(this));
+        recyclerViewPickups.setAdapter(myPickupsAdapter);
+    }
+
+    private void setupNavigationBar() {
+        NavigationBarManager.getInstance().setupBottomNavigationView(bottomNavigationView, this);
+        NavigationBarManager.getInstance().setNavigation(bottomNavigationView, this, R.id.navigation_orders);
+    }
+
+    private void setupListeners() {
+        fetchUserPickupsWithListeners();
+    }
+
     private void launchPickUpActivity(Order order) {
         Intent intent = new Intent(this, ShowPickUpActivity.class);
         intent.putExtra("order", order);
@@ -76,62 +95,94 @@ public class MyPickUpsActivity extends AppCompatActivity {
     private void fetchUserPickupsWithListeners() {
         String userId = MyUser.getInstance().getUser().getUserId();
 
-        FirebaseMyPickups.fetchUserPickupsWithListeners(userId, new FirebaseMyPickups.PickupsCallback() {
+        FirebaseMyPickups.listenToUserPickups(userId, new FirebaseMyPickups.PickupsCallback() {
             @Override
-            public void onPickupsFetched(List<Order> pickups) {
+            public void onListCleared() {
                 pickupList.clear();
-                pickupList.addAll(pickups);
-                myPickupsAdapter.notifyDataSetChanged();
+                myPickupsAdapter.notifyDataSetChanged(); // Notify adapter that data has been cleared
             }
 
             @Override
-            public void onOrderUpdated(Order order) {
-                int index = findOrderIndexById(order.getOrderId());
+            public void onPickupAdded(Order pickup) {
+                pickupList.add(pickup);
+                loadedPickupCount++;
+                myPickupsAdapter.notifyItemInserted(pickupList.size() - 1);
+                checkInitialLoadComplete();
+            }
 
+            @Override
+            public void onPickupModified(Order pickup) {
+                int index = findPickupIndexById(pickup.getOrderId());
                 if (index != -1) {
-                    pickupList.set(index, order);
+                    pickupList.set(index, pickup);
                     myPickupsAdapter.notifyItemChanged(index);
                 }
             }
 
             @Override
-            public void onOrderRemoved(String orderId) {
-                int index = findOrderIndexById(orderId);
+            public void onPickupRemoved(String pickupId) {
+                int index = findPickupIndexById(pickupId);
                 if (index != -1) {
                     pickupList.remove(index);
+                    loadedPickupCount--;
                     if (pickupList.isEmpty()) {
                         myPickupsAdapter.notifyDataSetChanged();
                     } else {
                         myPickupsAdapter.notifyItemRemoved(index);
                     }
+                    checkInitialLoadComplete();
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
                 Toast.makeText(MyPickUpsActivity.this, "Error getting user pickups: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                hideLoading(); // Hide loading on failure
+            }
+        }, new FirebaseMyPickups.PickupCountCallback() {
+            @Override
+            public void onPickupCountFetched(int count) {
+                totalPickupCount = count;
+                checkInitialLoadComplete();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Toast.makeText(MyPickUpsActivity.this, "Error getting pickup count: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                hideLoading(); // Hide loading on failure
             }
         });
     }
 
-    private int findOrderIndexById(String orderId) {
+    private int findPickupIndexById(String pickupId) {
         for (int i = 0; i < pickupList.size(); i++) {
-            if (pickupList.get(i).getOrderId().equals(orderId)) {
+            if (pickupList.get(i).getOrderId().equals(pickupId)) {
                 return i;
             }
         }
         return -1;
     }
 
-    private void setupNavigationBar() {
-        NavigationBarManager.getInstance().setupBottomNavigationView(bottomNavigationView, this);
-        NavigationBarManager.getInstance().setNavigation(bottomNavigationView,this,R.id.navigation_orders);
+    private void checkInitialLoadComplete() {
+        if (totalPickupCount!= -1 && loadedPickupCount >= totalPickupCount && !isInitialLoadComplete) {
+            isInitialLoadComplete = true;
+            hideLoading();
+        }
+    }
+
+    private void showLoading() {
+        progressBar.setVisibility(View.VISIBLE);
+        recyclerViewPickups.setVisibility(View.GONE);
+    }
+
+    private void hideLoading() {
+        progressBar.setVisibility(View.GONE);
+        recyclerViewPickups.setVisibility(View.VISIBLE);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
         FirebaseMyPickups.removeAllListeners();
-        FirebaseForAdapters.removeAllItemChangeListeners(); // Remove listeners when activity is destroyed
     }
 }

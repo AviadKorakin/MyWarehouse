@@ -595,7 +595,7 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
     private void saveOutOfStockLog(String itemName, String barcode, Date date) {
         String invokedBy = MyUser.getInstance().getUser().getName();
         String notes = "Item " + itemName + " is out of stock because it was updated during a warehouse inventory check.";
-        MyLog myLog = new MyLog("Item out of stock", date, notes, invokedBy, LogType.OUT_OF_STOCK);
+        MyLog myLog = new MyLog(UUID.randomUUID().toString(),"Item out of stock", date, notes, invokedBy, LogType.OUT_OF_STOCK);
 
         FirebaseUpdateItem.saveLog(myLog, new FirebaseUpdateItem.FirestoreCallback<Void>() {
             @Override
@@ -654,7 +654,7 @@ public class UpdateItemActivity extends AppCompatActivity implements OnMapReadyC
             notes.append("Images updated.\n");
         }
 
-        MyLog myLog = new MyLog("Item modification", new Date(), notes.toString(), invokedBy, LogType.ITEM_MODIFICATION);
+        MyLog myLog = new MyLog( UUID.randomUUID().toString(),"Item modification", new Date(), notes.toString(), invokedBy, LogType.ITEM_MODIFICATION);
         FirebaseUpdateItem.saveLog(myLog, new FirebaseUpdateItem.FirestoreCallback<Void>() {
             @Override
             public void onSuccess(Void result) {

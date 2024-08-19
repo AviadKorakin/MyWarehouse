@@ -1,43 +1,70 @@
 package com.mywarehouse.mywarehouse.Firebase;
 
-import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.EventListener;
-import com.google.firebase.firestore.FirebaseFirestoreException;
-import com.google.firebase.firestore.QuerySnapshot;
+import com.google.firebase.firestore.DocumentChange;
+import com.google.firebase.firestore.ListenerRegistration;
 import com.mywarehouse.mywarehouse.Models.ItemOrder;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class FirebaseAddOrder extends FirebaseManager {
 
+    private static ListenerRegistration itemListener;
+
     public interface ItemsCallback {
-        void onItemsFetched(List<ItemOrder> items);
+        void onItemAdded(ItemOrder item);
+        void onItemModified(ItemOrder item);
+        void onItemRemoved(String itemId);
+        void onItemCountFetched(int count); // Callback for the total count of valid items
         void onFailure(Exception e);
     }
 
     public static void listenToItems(ItemsCallback callback) {
-        db.collection("items").addSnapshotListener(new EventListener<QuerySnapshot>() {
-            @Override
-            public void onEvent(QuerySnapshot queryDocumentSnapshots, FirebaseFirestoreException e) {
-                if (e != null) {
-                    callback.onFailure(e);
-                    return;
-                }
+        if (itemListener != null) {
+            itemListener.remove(); // Remove any existing listener to avoid duplicates
+        }
 
-                if (queryDocumentSnapshots != null) {
-                    List<ItemOrder> itemList = new ArrayList<>();
-                    for (DocumentSnapshot document : queryDocumentSnapshots) {
-                        ItemOrder itemOrder = document.toObject(ItemOrder.class);
-                        if (itemOrder.getTotalQuantity() - itemOrder.getRequestedAmount() > 0 && itemOrder.isActive()) {
-                            itemList.add(itemOrder);
-                        }
+        AtomicInteger validItemCount = new AtomicInteger(0);
+
+        itemListener = db.collection("items").addSnapshotListener((snapshots, e) -> {
+            if (e != null) {
+                callback.onFailure(e);
+                return;
+            }
+
+            if (snapshots != null) {
+                for (DocumentChange dc : snapshots.getDocumentChanges()) {
+                    ItemOrder itemOrder = dc.getDocument().toObject(ItemOrder.class);
+                    switch (dc.getType()) {
+                        case ADDED:
+                            if (itemOrder.getTotalQuantity() - itemOrder.getRequestedAmount() > 0 && itemOrder.isActive()) {
+                                callback.onItemAdded(itemOrder);
+                                validItemCount.incrementAndGet();
+                            }
+                            break;
+                        case MODIFIED:
+                            if (itemOrder.getTotalQuantity() - itemOrder.getRequestedAmount() > 0 && itemOrder.isActive()) {
+                                callback.onItemModified(itemOrder);
+                            } else {
+                                callback.onItemRemoved(dc.getDocument().getId());
+                                validItemCount.decrementAndGet();
+                            }
+                            break;
+                        case REMOVED:
+                            callback.onItemRemoved(dc.getDocument().getId());
+                            validItemCount.decrementAndGet();
+                            break;
                     }
-                    callback.onItemsFetched(itemList);
-                } else {
-                    callback.onFailure(new Exception("QuerySnapshot is null"));
                 }
+                // Notify the total count after processing the snapshot
+                callback.onItemCountFetched(validItemCount.get());
             }
         });
+    }
+
+    public static void removeAllListeners() {
+        if (itemListener != null) {
+            itemListener.remove();
+            itemListener = null;
+        }
     }
 }

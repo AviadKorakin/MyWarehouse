@@ -121,7 +121,7 @@ public class AcceptTransactionAdapter extends RecyclerView.Adapter<AcceptTransac
                         .filter(itemWarehouse -> itemWarehouse.getQuantity() >= pickupItem.getQuantity() &&
                                 !itemWarehouse.getWarehouseName().equals(transactionRequest.getWarehouse()))
                         .forEach(itemWarehouse -> {
-                            String uniqueWarehouseName = "(" + warehouseCounter.getAndIncrement() + ")" + itemWarehouse.getWarehouseName();
+                            String uniqueWarehouseName = "(" + warehouseCounter.getAndIncrement() + ")" + itemWarehouse.getWarehouseName()+" ["+itemWarehouse.getQuantity()+"]";
                             WarehouseKey warehouseKey = new WarehouseKey(uniqueWarehouseName, itemWarehouse);
                             warehouseQuantities.add(new WarehouseQuantityRange(warehouseKey, pickupItem.getQuantity(), itemWarehouse.getQuantity()));
                         });

@@ -37,9 +37,8 @@ public class FirebaseAddNewWarehouse extends FirebaseManager{
 
     public static void saveLog(String warehouseName, Date date, String invokedBy, FirestoreCallback callback) {
         String notes = "Warehouse " + warehouseName + " created successfully";
-        MyLog myLog = new MyLog("Warehouse creation", date, notes, invokedBy, LogType.WAREHOUSE_CREATION);
-        String logId = "warehouse_creation_" + warehouseName + "_" + UUID.randomUUID().toString();
-        db.collection("logs").document(logId).set(myLog)
+        MyLog myLog = new MyLog(UUID.randomUUID().toString(),"Warehouse creation", date, notes, invokedBy, LogType.WAREHOUSE_CREATION);
+        db.collection("logs").document(myLog.getId()).set(myLog)
                 .addOnSuccessListener(documentReference -> callback.onSuccess())
                 .addOnFailureListener(callback::onFailure);
     }

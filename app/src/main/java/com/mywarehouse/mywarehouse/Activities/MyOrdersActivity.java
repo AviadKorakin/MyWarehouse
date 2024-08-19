@@ -2,6 +2,8 @@ package com.mywarehouse.mywarehouse.Activities;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.View;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
@@ -12,8 +14,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.mywarehouse.mywarehouse.Adapters.MyOrdersAdapter;
-import com.mywarehouse.mywarehouse.Enums.OrderType;
-import com.mywarehouse.mywarehouse.Firebase.FirebaseForAdapters;
 import com.mywarehouse.mywarehouse.Firebase.FirebaseMyOrders;
 import com.mywarehouse.mywarehouse.Models.Order;
 import com.mywarehouse.mywarehouse.R;
@@ -21,16 +21,21 @@ import com.mywarehouse.mywarehouse.Utilities.MyUser;
 import com.mywarehouse.mywarehouse.Utilities.NavigationBarManager;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MyOrdersActivity extends AppCompatActivity {
 
     private RecyclerView recyclerViewOrders;
     private MyOrdersAdapter myOrdersAdapter;
     private List<Order> orderList;
+    private Map<String, Order> orderMap;  // Map to track orders by ID
     private BottomNavigationView bottomNavigationView;
+    private ProgressBar progressBar;  // Loading indicator
+    private int totalOrderCount = 0;  // Total number of orders
+    private int loadedOrderCount = 0;  // Number of orders loaded so far
+    private boolean isInitialLoadComplete = false;  // Track if the initial load is complete
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -38,12 +43,24 @@ public class MyOrdersActivity extends AppCompatActivity {
         setContentView(R.layout.activity_my_orders);
         overridePendingTransition(R.anim.dark_screen, R.anim.light_screen);
 
+        initViews();
+        setupNavigationBar();
+        showLoading();  // Show loading indicator
+        setupListeners();
+    }
+
+    private void initViews() {
         recyclerViewOrders = findViewById(R.id.recycler_view_orders);
+        bottomNavigationView = findViewById(R.id.bottom_navigation);
+        progressBar = findViewById(R.id.progress_bar);
+
         orderList = new ArrayList<>();
+        orderMap = new HashMap<>();
         myOrdersAdapter = new MyOrdersAdapter(this, orderList);
 
         recyclerViewOrders.setLayoutManager(new LinearLayoutManager(this));
         recyclerViewOrders.setAdapter(myOrdersAdapter);
+
         OnBackPressedCallback callback = new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -54,83 +71,6 @@ public class MyOrdersActivity extends AppCompatActivity {
         };
 
         getOnBackPressedDispatcher().addCallback(this, callback);
-        bottomNavigationView = findViewById(R.id.bottom_navigation);
-        setupNavigationBar();
-
-        setupRealtimeOrderListener();
-    }
-
-    private void setupRealtimeOrderListener() {
-        String userId = MyUser.getInstance().getUser().getUserId();
-
-        FirebaseMyOrders.listenToUserOrders(userId, new FirebaseMyOrders.OrdersCallback() {
-            @Override
-            public void onOrdersFetched(List<Order> orders) {
-                orderList.clear();
-                orderList.addAll(orders);
-                sortOrders();
-                myOrdersAdapter.notifyDataSetChanged();
-
-                // Set up listeners for each order document
-                listenToOrderChanges(orders);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-            }
-        });
-    }
-
-    private void listenToOrderChanges(List<Order> orders) {
-        for (Order order : orders) {
-            FirebaseMyOrders.listenToOrderChanges(order.getOrderId(), new FirebaseMyOrders.OrderUpdateCallback() {
-                @Override
-                public void onOrderUpdated(Order updatedOrder) {
-                    // Update the specific order in the list
-                    int index = orderList.indexOf(order);
-                    if (index != -1) {
-                        orderList.set(index, updatedOrder);
-                        sortOrders();
-                        myOrdersAdapter.notifyItemChanged(index);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    Toast.makeText(MyOrdersActivity.this, "Error updating order: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                }
-            });
-        }
-    }
-
-    private void sortOrders() {
-        Collections.sort(orderList, new Comparator<Order>() {
-            @Override
-            public int compare(Order o1, Order o2) {
-                int priorityComparison = getOrderPriority(o1.getStatus()) - getOrderPriority(o2.getStatus());
-                if (priorityComparison != 0) {
-                    return priorityComparison;
-                }
-                return o1.getOrderDate().compareTo(o2.getOrderDate());
-            }
-
-            private int getOrderPriority(OrderType status) {
-                switch (status) {
-                    case REGISTERED:
-                        return 1;
-                    case IN_PROGRESS:
-                        return 2;
-                    case TRANSACTIONS_NEEDED:
-                        return 3;
-                    case PICKED_UP:
-                        return 4;
-                    case COMPLETED:
-                        return 5;
-                    default:
-                        return 6;
-                }
-            }
-        });
     }
 
     private void setupNavigationBar() {
@@ -138,9 +78,99 @@ public class MyOrdersActivity extends AppCompatActivity {
         NavigationBarManager.getInstance().setNavigation(bottomNavigationView, this, R.id.navigation_orders);
     }
 
+    private void setupListeners() {
+        FirebaseMyOrders.listenToUserOrders(MyUser.getInstance().getUser().getUserId(), new FirebaseMyOrders.OrdersCallback() {
+            @Override
+            public void onListCleared() {
+                orderList.clear();
+                orderMap.clear();
+                myOrdersAdapter.notifyDataSetChanged(); // Notify adapter that data has been cleared
+            }
+
+            @Override
+            public void onOrderAdded(Order order) {
+                orderList.add(order);
+                orderMap.put(order.getOrderId(), order);
+                loadedOrderCount++;
+                myOrdersAdapter.notifyItemInserted(orderList.size() - 1);
+                checkInitialLoadComplete();
+            }
+
+            @Override
+            public void onOrderModified(Order updatedOrder) {
+                int index = findOrderIndexById(updatedOrder.getOrderId());
+                if (index != -1) {
+                    orderList.set(index, updatedOrder);
+                    orderMap.put(updatedOrder.getOrderId(), updatedOrder);
+                    myOrdersAdapter.notifyItemChanged(index);
+                }
+            }
+
+            @Override
+            public void onOrderRemoved(String orderId) {
+                int index = findOrderIndexById(orderId);
+                if (index != -1) {
+                    orderList.remove(index);
+                    orderMap.remove(orderId);
+                    loadedOrderCount++;
+                    myOrdersAdapter.notifyItemRemoved(index);
+                    checkInitialLoadComplete();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Toast.makeText(MyOrdersActivity.this, "Error listening to orders: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                hideLoading();  // Hide loading on error
+            }
+        }, new FirebaseMyOrders.OrderCountCallback() {
+            @Override
+            public void onOrderCountFetched(int count) {
+                totalOrderCount = count;
+                if(count==0)
+                {
+                    Toast.makeText(MyOrdersActivity.this, "No orders to show", Toast.LENGTH_SHORT).show();
+                }
+                checkInitialLoadComplete();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Toast.makeText(MyOrdersActivity.this, "Failed to fetch total order count", Toast.LENGTH_SHORT).show();
+                hideLoading();  // Hide loading on failure
+            }
+        });
+    }
+
+    private int findOrderIndexById(String orderId) {
+        for (int i = 0; i < orderList.size(); i++) {
+            if (orderList.get(i).getOrderId().equals(orderId)) {
+                return i;
+            }
+        }
+        return -1;  // Return -1 if the order is not found
+    }
+
+    private void checkInitialLoadComplete() {
+        if (loadedOrderCount >= totalOrderCount && !isInitialLoadComplete) {
+            isInitialLoadComplete = true;
+            hideLoading();  // Hide the loading screen after the initial data load is complete
+        }
+    }
+
+    private void showLoading() {
+        progressBar.setVisibility(View.VISIBLE);
+        recyclerViewOrders.setVisibility(View.GONE);
+    }
+
+    private void hideLoading() {
+        progressBar.setVisibility(View.GONE);
+        recyclerViewOrders.setVisibility(View.VISIBLE);
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        FirebaseForAdapters.removeAllItemChangeListeners();// Remove listeners when activity is destroyed
+        FirebaseMyOrders.removeAllListeners(); // Remove listeners when the activity is destroyed
     }
 }

@@ -7,9 +7,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
-import android.view.GestureDetector;
 import android.view.LayoutInflater;
-import android.view.MotionEvent;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -35,6 +33,7 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polygon;
@@ -76,7 +75,6 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
     private RecyclerView recyclerImages,recyclerWarehouses;;
     private WarehouseAdapter warehouseAdapter;
     private Spinner spinnerWarehouse;
-    private Intent intent = null;
     private ImageAdapter imageAdapter;
     private GoogleMap map;
     private String currentPhotoPath;
@@ -85,10 +83,13 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
     private int imagesUploadedCount = 0;
     private boolean doneSuccessfully = false;
     private List<Warehouse> warehouseList = new ArrayList<>();
+    private Map<String,List<ItemWarehouse>> warehouseItemsMap= new HashMap<>();
     private Warehouse selectedWarehouse;
+    private Map<ItemWarehouse,Marker> itemWarehouseMarkerMap=new HashMap<>();
     private Item currentItem;
     private String documentId;
     private boolean isItemFound = false;
+    private boolean done=false;
     private Polygon lastpolygon;
 
 
@@ -161,6 +162,24 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 selectedWarehouse = warehouseList.get(position);
                 showWarehouseOnMap(selectedWarehouse);
+                    if(markers.isEmpty()) {
+                        racingFetchingSolver();
+                    }
+                    else
+                    {
+                        for (ItemWarehouse itemWarehouse : itemWarehouseList) {
+                            Marker marker=itemWarehouseMarkerMap.getOrDefault(itemWarehouse,null);
+                            if(marker!=null) {
+                                if (!itemWarehouse.getWarehouseName().equals(selectedWarehouse.getName()))
+                                    itemWarehouseMarkerMap.get(itemWarehouse).setVisible(false);
+                                else {
+                                    marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_box));
+                                    itemWarehouseMarkerMap.get(itemWarehouse).setVisible(true);
+                                }
+                            }
+                        }
+
+                    }
             }
 
             @Override
@@ -205,6 +224,9 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
 
         // Clear the map and add the marker for the item's location
         itemWarehouseList.addAll(item.getItemWarehouses());
+        if(item.getWarehouseItemMap()!=null) {
+            warehouseItemsMap = item.getWarehouseItemMap();
+        }
         warehouseAdapter.notifyDataSetChanged();
 
         for (String url : item.getImageUrls()) {
@@ -212,24 +234,8 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             Uri uri = Uri.parse(url);
             imageAdapter.updateImageUri(imageAdapter.getLastItemId(), uri, uri.toString());
         }
-        if(map!=null)
-        {
-            if(markers.isEmpty()) {
-                for (ItemWarehouse itemWarehouse : itemWarehouseList) {
-                    Marker marker = map.addMarker(new MarkerOptions().position(itemWarehouse.getLocation().toLatLng()));
-                    marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_box));
-                    markers.add(marker);
-                }
-            }
-        }
-        if(!warehouseList.isEmpty() || !itemWarehouseList.isEmpty()) {
-            for (int x = 0; x < warehouseList.size(); x++) {
-                if (warehouseList.get(x).getName().equals(itemWarehouseList.get(0).getWarehouseName()) ) {
-                    spinnerWarehouse.setSelection(x);
-                    break;
-                }
-            }
-        }
+
+            racingFetchingSolver();
     }
 
 
@@ -265,21 +271,8 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
         }
         if(isItemFound)
         {
-            if(markers.isEmpty()) {
-                for (ItemWarehouse itemWarehouse : itemWarehouseList) {
-                    Marker marker = map.addMarker(new MarkerOptions().position(itemWarehouse.getLocation().toLatLng()));
-                    marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_box));
-                    markers.add(marker);
-                }
-            }
-            if(!warehouseList.isEmpty() || !itemWarehouseList.isEmpty()) {
-                for (int x = 0; x < warehouseList.size(); x++) {
-                    if (warehouseList.get(x).getName().equals(itemWarehouseList.get(0).getWarehouseName()) ) {
-                        spinnerWarehouse.setSelection(x);
-                        break;
-                    }
-                }
-            }
+
+            racingFetchingSolver();
         }
         map.setOnMapClickListener(this::handleMapClick);
         map.setOnMarkerClickListener(this::removeMarkerAndItem);
@@ -287,6 +280,33 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
         map.setOnCameraIdleListener(() -> customNestedScrollView.setScrollingEnabled(true));
     }
 
+    private void racingFetchingSolver()
+    {
+        if(!done && map!=null && isItemFound && warehouseList!=null && !warehouseList.isEmpty() && !itemWarehouseList.isEmpty() )
+        {
+                for (int x = 0; x < warehouseList.size(); x++) {
+                    if (warehouseList.get(x).getName().equals(itemWarehouseList.get(0).getWarehouseName()) ) {
+                        spinnerWarehouse.setSelection(x);
+                        selectedWarehouse=warehouseList.get(x);
+                        break;
+                    }
+                }
+            if(markers.isEmpty()) {
+                for (ItemWarehouse itemWarehouse : itemWarehouseList) {
+                    Marker marker = map.addMarker(new MarkerOptions().position(itemWarehouse.getLocation().toLatLng()));
+                    if(itemWarehouse.getWarehouseName().equals(selectedWarehouse.getName()))
+                        marker.setVisible(false);
+                    else
+                        marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_box));
+
+                    markers.add(marker);
+                    itemWarehouseMarkerMap.put(itemWarehouse,marker);
+                }
+            }
+
+            done=true;
+        }
+    }
     private void handleMapClick(LatLng latLng) {
         if (!isLocationInsideWarehouse(latLng,warehouseList.get(spinnerWarehouse.getSelectedItemPosition()).getPoints())) {
             Toast.makeText(this, "Location must be inside a warehouse", Toast.LENGTH_SHORT).show();
@@ -294,13 +314,15 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
         }
 
         Marker marker = map.addMarker(new MarkerOptions().position(latLng));
-        marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_box));
+        marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_boxgreen));
         markers.add(marker);
 
         String warehouseName = warehouseList.get(spinnerWarehouse.getSelectedItemPosition()).getName();
-        ItemWarehouse itemWarehouse = new ItemWarehouse(warehouseName, latLng, 0);
+        ItemWarehouse itemWarehouse = new ItemWarehouse(selectedWarehouse.getName(), latLng, 0);
+        warehouseItemsMap.computeIfAbsent(warehouseName, k -> new ArrayList<>()).add(itemWarehouse);
         itemWarehouseList.add(itemWarehouse);
         warehouseAdapter.notifyItemInserted(itemWarehouseList.size() - 1);
+        itemWarehouseMarkerMap.put(itemWarehouse,marker);
     }
 
     private boolean removeMarkerAndItem(Marker marker) {
@@ -308,8 +330,20 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
         if (index != -1) {
             marker.remove();
             markers.remove(index);
+            ItemWarehouse item= itemWarehouseList.get(index);
             itemWarehouseList.remove(index);
+            List<ItemWarehouse> updateList=warehouseItemsMap.get(selectedWarehouse.getName());
+            updateList.remove(item);
+            if(updateList.isEmpty())
+            {
+                warehouseItemsMap.remove(selectedWarehouse.getName());
+            }
+            else
+            {
+                warehouseItemsMap.put(selectedWarehouse.getName(),updateList);
+            }
             warehouseAdapter.notifyItemRemoved(index);
+            itemWarehouseMarkerMap.remove(item);
         }
         return true;
     }
@@ -447,8 +481,6 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             return;
         }
 
-        Map<String, List<ItemWarehouse>> warehouseItemMap = createWarehouseItemMap(itemWarehouseList);
-
         if (totalQuantity == 0) {
             AlertDialog.Builder builder = new AlertDialog.Builder(this, R.style.CustomAlertDialogTheme);
             LayoutInflater inflater = getLayoutInflater();
@@ -457,7 +489,7 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             builder.setView(dialogView)
                     .setPositiveButton("Yes", (dialog, which) -> {
                         Date currentDate = new Date();
-                        Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, warehouseItemMap, currentItem.getRequestedAmount(), false);
+                        Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, warehouseItemsMap, currentItem.getRequestedAmount(), false);
 
                         FirebaseUpdateItemBundled.saveLog(updatedItem, currentItem, MyUser.getInstance().getUser().getName(), new FirebaseUpdateItemBundled.FirestoreCallback() {
                             @Override
@@ -503,7 +535,7 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             alertDialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(ContextCompat.getColor(this, R.color.white));
         } else {
             Date currentDate = new Date();
-            Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, warehouseItemMap, currentItem.getRequestedAmount(), false);
+            Item updatedItem = new Item(barcode, name, description, totalQuantity, imageAdapter.getImageUrls(), true, supplier, currentDate, itemWarehouseList, warehouseItemsMap, currentItem.getRequestedAmount(), false);
 
             FirebaseUpdateItemBundled.saveLog(updatedItem, currentItem, MyUser.getInstance().getUser().getName(), new FirebaseUpdateItemBundled.FirestoreCallback() {
                 @Override
@@ -533,21 +565,6 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
         }
     }
 
-    private Map<String, List<ItemWarehouse>> createWarehouseItemMap(List<ItemWarehouse> itemWarehouseList) {
-        Map<String, List<ItemWarehouse>> warehouseItemMap = new HashMap<>();
-
-        for (ItemWarehouse itemWarehouse : itemWarehouseList) {
-            String warehouseName = itemWarehouse.getWarehouseName();
-
-            if (!warehouseItemMap.containsKey(warehouseName)) {
-                warehouseItemMap.put(warehouseName, new ArrayList<>());
-            }
-
-            warehouseItemMap.get(warehouseName).add(itemWarehouse);
-        }
-
-        return warehouseItemMap;
-    }
 
 
     private int calculateTotalQuantity() {
@@ -621,18 +638,15 @@ public class UpdateItemBundledActivity extends AppCompatActivity implements OnMa
             lastpolygon.remove();
         }
         lastpolygon= map.addPolygon(polygonOptions);
-        map.moveCamera(CameraUpdateFactory.newLatLngZoom(avgPoint(sortedPoints), 19));
+        List<LatLng> points = warehouse.getPoints();
+        LatLngBounds.Builder builder = new LatLngBounds.Builder();
+        for (LatLng point : points) {
+            builder.include(point);
+        }
+        LatLngBounds bounds = builder.build();
+        map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 100));
     }
 
-    private LatLng avgPoint(List<LatLng> sortedPoints) {
-        double lat = 0;
-        double lng = 0;
-        for (LatLng point : sortedPoints) {
-            lat += point.latitude;
-            lng += point.longitude;
-        }
-        return new LatLng(lat / sortedPoints.size(), lng / sortedPoints.size());
-    }
 
     private void loadWarehouses() {
         FirebaseUpdateItemBundled.fetchWarehouses(warehouseList -> {

@@ -1,6 +1,6 @@
 package com.mywarehouse.mywarehouse.Firebase;
 
-
+import com.google.firebase.firestore.DocumentChange;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.mywarehouse.mywarehouse.Enums.OrderType;
 import com.mywarehouse.mywarehouse.Models.Order;
@@ -15,107 +15,124 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class FirebaseMyPickups extends FirebaseManager {
 
+    private static ListenerRegistration userListener;
+    private static final Map<String, ListenerRegistration> orderListeners = new HashMap<>();
 
-        private static ListenerRegistration userListener;
-        private static final Map<String, ListenerRegistration> orderListeners = new HashMap<>();
+    public interface PickupsCallback {
+        void onPickupAdded(Order pickup);
+        void onPickupModified(Order pickup);
+        void onPickupRemoved(String pickupId);
+        void onListCleared(); // New method to clear the list
+        void onFailure(Exception e);
+    }
 
-        public interface PickupsCallback {
-            void onPickupsFetched(List<Order> pickups);
+    public interface PickupCountCallback {
+        void onPickupCountFetched(int count);
+        void onFailure(Exception e);
+    }
 
-            void onOrderUpdated(Order order);
-
-            void onOrderRemoved(String orderId);
-
-            void onFailure(Exception e);
+    public static void listenToUserPickups(String userId, PickupsCallback pickupsCallback, PickupCountCallback countCallback) {
+        if (userListener != null) {
+            userListener.remove(); // Remove any existing listener to avoid duplicates
         }
 
-        public static void fetchUserPickupsWithListeners(String userId, PickupsCallback callback) {
-            if (userListener != null) {
-                userListener.remove(); // Remove any existing listener to avoid duplicates
+        // Listen to the user's document to get the list of pickup IDs and count
+        userListener = db.collection("users").document(userId).addSnapshotListener((userSnapshot, e) -> {
+            if (e != null) {
+                pickupsCallback.onFailure(e);
+                countCallback.onFailure(e);
+                return;
             }
 
-            // Step 1: Fetch the initial data
-            db.collection("users").document(userId).get().addOnCompleteListener(userTask -> {
-                if (userTask.isSuccessful() && userTask.getResult() != null) {
-                    User user = userTask.getResult().toObject(User.class);
-                    MyUser.getInstance().setUser(user);
-
-                    if (user != null && user.getPickups() != null && !user.getPickups().isEmpty()) {
-                        List<String> pickupIds = user.getPickups();
-                        List<Order> pickupList = new ArrayList<>();
-                        AtomicInteger counter= new AtomicInteger();
-                        // Fetch all orders and add them to the list
-                        for (String pickupId : pickupIds) {
-                            db.collection("orders").document(pickupId).get().addOnCompleteListener(orderTask -> {
-                                if (orderTask.isSuccessful() && orderTask.getResult() != null) {
-                                    Order order = orderTask.getResult().toObject(Order.class);
-                                    counter.getAndIncrement();
-                                    if (order != null && order.getStatus() == OrderType.IN_PROGRESS) {
-                                        pickupList.add(order);
-                                    }
-
-                                    // Check if we've processed all orders
-                                    if (counter.get() == pickupIds.size()) {
-                                        callback.onPickupsFetched(pickupList);
-
-                                        // Step 2: Set up listeners after initial fetch
-                                        setupOrderListeners(pickupIds, callback);
-                                    }
-                                } else {
-                                    callback.onFailure(orderTask.getException());
-                                }
-                            });
-                        }
-                    } else {
-                        callback.onPickupsFetched(new ArrayList<>());
-                    }
+            if (userSnapshot != null && userSnapshot.exists()) {
+                User user = userSnapshot.toObject(User.class);
+                MyUser.getInstance().setUser(user);
+                if (user != null && user.getPickups() != null) {
+                    pickupsCallback.onListCleared(); // Clear the list before processing new data
+                    listenToPickupChanges(user.getPickups(), pickupsCallback, countCallback);
                 } else {
-                    callback.onFailure(userTask.getException());
+                    pickupsCallback.onFailure(new Exception("User or user pickups not found"));
+                    countCallback.onFailure(new Exception("User or user pickups not found"));
                 }
-            });
+            } else {
+                pickupsCallback.onFailure(new Exception("DocumentSnapshot is null or doesn't exist"));
+                countCallback.onFailure(new Exception("DocumentSnapshot is null or doesn't exist"));
+            }
+        });
+    }
+
+    private static void listenToPickupChanges(List<String> pickupIds, PickupsCallback pickupsCallback, PickupCountCallback countCallback) {
+        AtomicInteger inProgressCount = new AtomicInteger(0);
+        if (pickupIds==null || pickupIds.isEmpty() ) {
+            countCallback.onPickupCountFetched(0);
+            return;
+        }
+        // Split the list into chunks of 10 (the maximum supported by Firestore for whereIn queries)
+        List<List<String>> chunks = new ArrayList<>();
+        for (int i = 0; i < pickupIds.size(); i += 10) {
+            chunks.add(pickupIds.subList(i, Math.min(i + 10, pickupIds.size())));
         }
 
-        private static void setupOrderListeners(List<String> pickupIds, PickupsCallback callback) {
-            for (String pickupId : pickupIds) {
-                if (!orderListeners.containsKey(pickupId)) {
-                    ListenerRegistration orderListener = db.collection("orders").document(pickupId)
-                            .addSnapshotListener((snapshot, e) -> {
-                                if (e != null) {
-                                    callback.onFailure(e);
-                                    return;
-                                }
+        // AtomicInteger to track the number of processed chunks
+        AtomicInteger processedChunks = new AtomicInteger(0);
 
-                                if (snapshot != null && snapshot.exists()) {
-                                    Order order = snapshot.toObject(Order.class);
-                                    if (order != null) {
+        // Set up a listener for each chunk
+        for (List<String> chunk : chunks) {
+            ListenerRegistration chunkListener = db.collection("orders")
+                    .whereIn("orderId", chunk)
+                    .addSnapshotListener((snapshots, e) -> {
+                        if (e != null) {
+                            pickupsCallback.onFailure(e);
+                            return;
+                        }
+
+                        if (snapshots != null) {
+                            for (DocumentChange dc : snapshots.getDocumentChanges()) {
+                                Order order = dc.getDocument().toObject(Order.class);
+                                switch (dc.getType()) {
+                                    case ADDED:
                                         if (order.getStatus() == OrderType.IN_PROGRESS) {
-                                            callback.onOrderUpdated(order);
+                                            pickupsCallback.onPickupAdded(order);
+                                            inProgressCount.incrementAndGet();
                                         }
-                                    }
-                                } else {
-                                    callback.onOrderRemoved(pickupId);
-                                    removeOrderListener(pickupId);
+                                        break;
+                                    case MODIFIED:
+                                        if (order.getStatus() == OrderType.IN_PROGRESS) {
+                                            pickupsCallback.onPickupModified(order);
+                                        } else {
+                                            pickupsCallback.onPickupRemoved(order.getOrderId());
+                                            inProgressCount.decrementAndGet();
+                                        }
+                                        break;
+                                    case REMOVED:
+                                        pickupsCallback.onPickupRemoved(dc.getDocument().getId());
+                                        inProgressCount.decrementAndGet();
+                                        break;
                                 }
-                            });
-                    orderListeners.put(pickupId, orderListener);
-                }
-            }
-        }
+                            }
 
-        private static void removeOrderListener(String orderId) {
-            if (orderListeners.containsKey(orderId)) {
-                orderListeners.get(orderId).remove();
-                orderListeners.remove(orderId);
-            }
-        }
+                            // Once all chunks are processed, send the in-progress count
+                            if (processedChunks.incrementAndGet() == chunks.size()) {
+                                countCallback.onPickupCountFetched(inProgressCount.get());
+                            }
+                        }
+                    });
 
-        public static void removeAllListeners() {
-            if (userListener != null) {
-                userListener.remove();
+            // Store the listener registration so we can remove it later
+            for (String pickupId : chunk) {
+                orderListeners.put(pickupId, chunkListener);
             }
-            for (ListenerRegistration listener : orderListeners.values()) {
-                listener.remove();
-            }
-            orderListeners.clear();
         }
     }
+
+    public static void removeAllListeners() {
+        if (userListener != null) {
+            userListener.remove();
+            userListener = null;
+        }
+        for (ListenerRegistration listener : orderListeners.values()) {
+            listener.remove();
+        }
+        orderListeners.clear();
+    }
+}

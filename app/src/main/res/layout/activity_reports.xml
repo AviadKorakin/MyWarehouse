@@ -13,6 +13,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
+        android:visibility="gone"
         android:layout_alignParentTop="true">
 
         <!-- Date Input -->
@@ -61,8 +62,17 @@
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recycler_logs"
             android:layout_width="match_parent"
+            android:visibility="gone"
             android:layout_height="wrap_content" />
     </androidx.core.widget.NestedScrollView>
+
+    <!-- Loading Indicator -->
+    <ProgressBar
+        android:id="@+id/progress_bar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:visibility="gone" />
 
     <!-- Bottom Navigation View -->
     <com.google.android.material.bottomnavigation.BottomNavigationView

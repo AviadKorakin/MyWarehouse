@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 public class Warehouse {
     private String name;
@@ -65,7 +66,6 @@ public class Warehouse {
         // Add the bottom-left point back to the beginning of the list
         points.add(0, bottomLeft);
 
-        this.points=points;
     }
 
     public String getName() {
@@ -95,5 +95,18 @@ public class Warehouse {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Warehouse warehouse = (Warehouse) o;
+        return active == warehouse.active &&
+                Objects.equals(name, warehouse.name) &&
+                Objects.equals(points, warehouse.points);
+    }
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, points, active);
     }
 }

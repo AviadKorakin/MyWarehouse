@@ -6,6 +6,7 @@ import android.os.Parcelable;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class Item implements Parcelable {
     public static final int MIN_LINES_COLLAPSED = 1;
@@ -70,6 +71,11 @@ public class Item implements Parcelable {
             return new Item[size];
         }
     };
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(barcode, name);
+    }
 
     @Override
     public void writeToParcel(Parcel dest, int flags) {

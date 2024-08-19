@@ -5,38 +5,48 @@
     android:layout_height="match_parent"
     android:background="@color/green"
     tools:context=".Activities.PickupOrdersActivity">
-<RelativeLayout
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:layout_above="@id/bottom_navigation"
-    android:padding="16dp">
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:id="@+id/container"
-        android:orientation="horizontal">
-    <!-- Spinner for selecting warehouses -->
-    <androidx.appcompat.widget.AppCompatSpinner
-        android:id="@+id/spinner_warehouses"
-        android:layout_width="0dp"
-        android:layout_height="55dp"
-        android:layout_marginBottom="16dp"
-        android:layout_weight="1"
-        android:layout_marginEnd="10dp"
-        android:background="@color/orange"
-        android:textAlignment="center" />
 
-    </LinearLayout>
-
-    <!-- RecyclerView for displaying orders -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler_view_orders"
+    <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_below="@id/container"
-        android:padding="8dp"
-        app:layout_constraintBottom_toTopOf="parent" />
-</RelativeLayout>
+        android:layout_above="@id/bottom_navigation"
+        android:padding="16dp">
+
+        <LinearLayout
+            android:id="@+id/container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <!-- Spinner for selecting warehouses -->
+            <androidx.appcompat.widget.AppCompatSpinner
+                android:id="@+id/spinner_warehouses"
+                android:layout_width="0dp"
+                android:layout_height="55dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="10dp"
+                android:background="@color/orange"
+                android:visibility="gone"
+                android:textAlignment="center" />
+        </LinearLayout>
+
+        <!-- RecyclerView for displaying orders -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recycler_view_orders"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_below="@id/container"
+            android:padding="8dp" />
+    </RelativeLayout>
+
+    <!-- Loading Indicator -->
+    <ProgressBar
+        android:id="@+id/progress_bar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:visibility="gone" />
+
     <!-- Bottom Navigation View -->
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_navigation"
@@ -46,4 +56,5 @@
         android:background="@color/darkgreen"
         app:labelVisibilityMode="unlabeled"
         app:itemRippleColor="@android:color/transparent" />
+
 </RelativeLayout>

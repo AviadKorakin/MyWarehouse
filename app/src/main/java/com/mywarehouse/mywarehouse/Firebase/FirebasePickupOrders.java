@@ -1,11 +1,10 @@
 package com.mywarehouse.mywarehouse.Firebase;
 
+import com.google.firebase.firestore.AggregateQuery;
+import com.google.firebase.firestore.AggregateQuerySnapshot;
+import com.google.firebase.firestore.AggregateSource;
 import com.google.firebase.firestore.DocumentChange;
-import com.google.firebase.firestore.DocumentSnapshot;
-import com.google.firebase.firestore.EventListener;
-import com.google.firebase.firestore.FirebaseFirestoreException;
-import com.google.firebase.firestore.QueryDocumentSnapshot;
-import com.google.firebase.firestore.QuerySnapshot;
+import com.google.firebase.firestore.ListenerRegistration;
 import com.mywarehouse.mywarehouse.Enums.OrderType;
 import com.mywarehouse.mywarehouse.Models.Item;
 import com.mywarehouse.mywarehouse.Models.PickupItem;
@@ -14,9 +13,14 @@ import com.mywarehouse.mywarehouse.Models.Order;
 import com.mywarehouse.mywarehouse.Models.Warehouse;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class FirebasePickupOrders extends FirebaseManager {
+
+    private static ListenerRegistration ordersListenerRegistration;
+    private static Map<String, ListenerRegistration> itemListenersMap = new HashMap<>();
 
     public interface FetchCallback<T> {
         void onSuccess(List<T> items);
@@ -38,14 +42,20 @@ public class FirebasePickupOrders extends FirebaseManager {
         void onFailure(Exception e);
     }
 
+    public interface OrderCountCallback {
+        void onOrderCountFetched(int count);
+        void onFailure(Exception e);
+    }
+
+    // Fetch the list of warehouses
     public static void fetchWarehouses(FetchCallback<Warehouse> callback) {
         db.collection("warehouses").get().addOnCompleteListener(task -> {
             if (task.isSuccessful() && task.getResult() != null) {
                 List<Warehouse> warehouseList = new ArrayList<>();
-                for (QueryDocumentSnapshot document : task.getResult()) {
+                task.getResult().forEach(document -> {
                     Warehouse warehouse = document.toObject(Warehouse.class);
                     warehouseList.add(warehouse);
-                }
+                });
                 callback.onSuccess(warehouseList);
             } else {
                 callback.onFailure(task.getException());
@@ -53,50 +63,7 @@ public class FirebasePickupOrders extends FirebaseManager {
         });
     }
 
-    public static void fetchOrders(FetchCallback<Order> callback) {
-        db.collection("orders").whereEqualTo("status", OrderType.REGISTERED.name()).get().addOnCompleteListener(task -> {
-            if (task.isSuccessful() && task.getResult() != null) {
-                List<Order> orderList = new ArrayList<>();
-                for (QueryDocumentSnapshot document : task.getResult()) {
-                    Order order = document.toObject(Order.class);
-                    orderList.add(order);
-                }
-                callback.onSuccess(orderList);
-            } else {
-                callback.onFailure(task.getException());
-            }
-        });
-    }
-
-    public static void listenToOrderChanges(OrdersListenerCallback callback) {
-        db.collection("orders").addSnapshotListener(new EventListener<QuerySnapshot>() {
-            @Override
-            public void onEvent(QuerySnapshot snapshots, FirebaseFirestoreException e) {
-                if (e != null) {
-                    callback.onFailure(e);
-                    return;
-                }
-
-                if (snapshots != null) {
-                    for (DocumentChange change : snapshots.getDocumentChanges()) {
-                        Order order = change.getDocument().toObject(Order.class);
-                        switch (change.getType()) {
-                            case ADDED:
-                                callback.onOrderAdded(order);
-                                break;
-                            case MODIFIED:
-                                callback.onOrderModified(order);
-                                break;
-                            case REMOVED:
-                                callback.onOrderRemoved(order);
-                                break;
-                        }
-                    }
-                }
-            }
-        });
-    }
-
+    // Fetch an individual item by its document ID
     public static void fetchItem(String documentId, ItemCallback callback) {
         db.collection("items").document(documentId).get().addOnCompleteListener(task -> {
             if (task.isSuccessful() && task.getResult() != null) {
@@ -108,6 +75,7 @@ public class FirebasePickupOrders extends FirebaseManager {
         });
     }
 
+    // Fetch pickup items with associated images
     public static void fetchPickupItemsWithImages(List<PickupItem> pickupItems, PickupItemsCallback callback) {
         List<PickupItemWithImages> pickupItemsWithImagesList = new ArrayList<>();
 
@@ -127,20 +95,93 @@ public class FirebasePickupOrders extends FirebaseManager {
         }
     }
 
-    public static void listenToItemChanges(ItemCallback callback) {
-        db.collection("items").addSnapshotListener(new EventListener<QuerySnapshot>() {
-            @Override
-            public void onEvent(QuerySnapshot snapshots, FirebaseFirestoreException e) {
-                if (e != null) {
-                    // Handle error
-                    return;
-                }
+    // Listen to changes on individual items
+    public static void listenToItemChanges(String documentId, ItemCallback callback) {
+        if (itemListenersMap.containsKey(documentId)) {
+            return; // Listener already exists for this item
+        }
 
-                for (DocumentSnapshot document : snapshots.getDocuments()) {
-                    Item item = document.toObject(Item.class);
-                    callback.onCallback(item);
-                }
+        ListenerRegistration itemListener = db.collection("items").document(documentId)
+                .addSnapshotListener((snapshot, e) -> {
+                    if (e != null) {
+                        return;
+                    }
+                    if (snapshot != null && snapshot.exists()) {
+                        Item item = snapshot.toObject(Item.class);
+                        callback.onCallback(item);
+                    } else {
+                        callback.onCallback(null); // Notify that the item was removed
+                    }
+                });
+
+        itemListenersMap.put(documentId, itemListener);
+    }
+
+    // Listen to all orders and filter based on the registered status
+    public static void listenToAllOrdersWithStatusFiltering(OrdersListenerCallback callback) {
+        ordersListenerRegistration = db.collection("orders")
+                .addSnapshotListener((snapshots, e) -> {
+                    if (e != null) {
+                        callback.onFailure(e);
+                        return;
+                    }
+
+                    if (snapshots != null) {
+                        for (DocumentChange change : snapshots.getDocumentChanges()) {
+                            Order order = change.getDocument().toObject(Order.class);
+
+                            switch (change.getType()) {
+                                case ADDED:
+                                    if (order.getStatus() == OrderType.REGISTERED) {
+                                        callback.onOrderAdded(order);
+                                    }
+                                    break;
+                                case MODIFIED:
+                                    if (order.getStatus() == OrderType.REGISTERED) {
+                                        callback.onOrderModified(order);
+                                    } else {
+                                        // If the order's status changed from REGISTERED to something else, consider it removed
+                                        callback.onOrderRemoved(order);
+                                    }
+                                    break;
+                                case REMOVED:
+                                    callback.onOrderRemoved(order);
+                                    break;
+                            }
+                        }
+                    }
+                });
+
+        // Store the listener in a map if you need to manage it later
+        itemListenersMap.put("allOrdersListener", ordersListenerRegistration);
+    }
+
+    // Fetch the count of orders with status REGISTERED
+    public static void fetchRegisteredOrderCount(OrderCountCallback callback) {
+        AggregateQuery countQuery = db.collection("orders")
+                .whereEqualTo("status", OrderType.REGISTERED.name())
+                .count();  // Use the count method
+        countQuery.get(AggregateSource.SERVER).addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                AggregateQuerySnapshot snapshot = task.getResult();
+                callback.onOrderCountFetched((int) snapshot.getCount());
+            } else {
+                callback.onFailure(task.getException());
             }
         });
+    }
+
+    // Remove the order listeners
+    public static void removeAllListeners() {
+        if (ordersListenerRegistration != null) {
+            ordersListenerRegistration.remove();
+            ordersListenerRegistration = null;
+        }
+        for (ListenerRegistration listener : itemListenersMap.values()) {
+            if (listener != null) {
+                listener.remove();
+            }
+        }
+        itemListenersMap.clear();  // Clear the map after removing all listeners
     }
 }

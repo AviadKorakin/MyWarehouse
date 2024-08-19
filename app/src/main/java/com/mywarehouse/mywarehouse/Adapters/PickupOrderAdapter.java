@@ -53,55 +53,86 @@ public class PickupOrderAdapter extends RecyclerView.Adapter<PickupOrderAdapter.
 
     public void setSelectedWarehouse(String selectedWarehouse) {
         this.selectedWarehouse = selectedWarehouse;
+
         if (orderList == null || orderList.isEmpty()) return;
         checkOrderAvailability();
     }
 
     public void checkOrderAvailability() {
-        for (Order order : orderList) {
-            if ("NONE".equals(selectedWarehouse)) {
+        if ("NONE".equals(selectedWarehouse)) {
+            for (Order order : orderList) {
                 visibilityMap.put(order.getOrderId(), false);
-                continue;
+                notifyDataSetChanged();
             }
-
-            boolean allItemsAvailable = true;
-            List<PickupItemWithImages> pickupItemsWithImagesList = orderPickupItemsMap.get(order.getOrderId());
-            List<Item> itemsList = orderItemsMap.get(order.getOrderId());
-            List<PickupItem> requestedItemsToMove = new ArrayList<>();
-
-            if (itemsList == null || pickupItemsWithImagesList == null) continue;
-
-            for (int i = 0; i < pickupItemsWithImagesList.size(); i++) {
-                PickupItemWithImages pickupItemWithImages = pickupItemsWithImagesList.get(i);
-                Item item = itemsList.get(i);
-                List<ItemWarehouse> list= item.getWarehouseItemMap().getOrDefault(selectedWarehouse,null);
-                int availableQuantity;
-                if(list==null)
-                {
-                    availableQuantity=0;
-                }
-                else {
-                    availableQuantity = list.stream()
-                            .mapToInt(ItemWarehouse::getQuantity)
-                            .sum();
-                }
-                if (availableQuantity < pickupItemWithImages.getPickupItem().getQuantity()) {
-                    allItemsAvailable = false;
-                    requestedItemsToMove.add(pickupItemWithImages.getPickupItem());
-                }
-            }
-
-            if (allItemsAvailable) {
-                order.setStatus(OrderType.REGISTERED);
-                orderRequestedItemsMap.remove(order.getOrderId());
-            } else {
-                order.setStatus(OrderType.TRANSACTIONS_NEEDED);
-                orderRequestedItemsMap.put(order.getOrderId(), requestedItemsToMove);
-            }
-            visibilityMap.put(order.getOrderId(), true);
+            return;
+        }
+        for (Order order : orderList) {
+            checkOrderAvailabilityForOrder(order);
         }
         sortOrders();
         notifyDataSetChanged();
+    }
+
+    public void checkOrderAvailabilityForOrder(Order order) {
+        if ("NONE".equals(selectedWarehouse)) {
+            visibilityMap.put(order.getOrderId(), false);
+            return;
+        }
+
+        boolean allItemsAvailable = true;
+        List<PickupItemWithImages> pickupItemsWithImagesList = orderPickupItemsMap.get(order.getOrderId());
+        List<Item> itemsList = orderItemsMap.get(order.getOrderId());
+        List<PickupItem> requestedItemsToMove = new ArrayList<>();
+
+        if (pickupItemsWithImagesList == null || pickupItemsWithImagesList.isEmpty() || itemsList == null || itemsList.isEmpty()) {
+            visibilityMap.put(order.getOrderId(), false);
+            return;
+        }
+        for (int i = 0; i < pickupItemsWithImagesList.size(); i++) {
+            PickupItemWithImages pickupItemWithImages = pickupItemsWithImagesList.get(i);
+            Item item = itemsList.get(i);
+            List<ItemWarehouse> list = item.getWarehouseItemMap().getOrDefault(selectedWarehouse, null);
+            int availableQuantity = list == null ? 0 : list.stream().mapToInt(ItemWarehouse::getQuantity).sum();
+
+            if (availableQuantity < pickupItemWithImages.getPickupItem().getQuantity()) {
+                allItemsAvailable = false;
+                requestedItemsToMove.add(pickupItemWithImages.getPickupItem());
+            }
+        }
+
+        if (allItemsAvailable) {
+            order.setStatus(OrderType.REGISTERED);
+            orderRequestedItemsMap.remove(order.getOrderId());
+        } else {
+            order.setStatus(OrderType.TRANSACTIONS_NEEDED);
+            orderRequestedItemsMap.put(order.getOrderId(), requestedItemsToMove);
+        }
+
+        visibilityMap.put(order.getOrderId(), true);
+    }
+
+    public void updateItemInOrder(String itemKey, Item updatedItem) {
+        for (Order order : orderList) {
+            List<PickupItemWithImages> pickupItemsWithImagesList = orderPickupItemsMap.get(order.getOrderId());
+            List<Item> itemsList = orderItemsMap.get(order.getOrderId());
+
+            if (pickupItemsWithImagesList != null && itemsList != null) {
+                for (int i = 0; i < itemsList.size(); i++) {
+                    Item item = itemsList.get(i);
+                    String currentKey = item.getBarcode() + "_" + item.getName();
+
+                    if (currentKey.equals(itemKey)) {
+                        // Update the item in both lists
+                        itemsList.set(i, updatedItem);
+                        PickupItemWithImages updatedPickupItemWithImages = new PickupItemWithImages(pickupItemsWithImagesList.get(i).getPickupItem(), updatedItem.getImageUrls());
+                        pickupItemsWithImagesList.set(i, updatedPickupItemWithImages);
+
+                        // Notify the adapter of the change
+                        notifyItemChanged(orderList.indexOf(order));
+                    }
+                }
+            }
+        }
     }
 
     private void sortOrders() {
@@ -127,7 +158,7 @@ public class PickupOrderAdapter extends RecyclerView.Adapter<PickupOrderAdapter.
     public void onBindViewHolder(@NonNull PickupOrderViewHolder holder, int position) {
         Order order = orderList.get(position);
 
-        if (visibilityMap.getOrDefault(order.getOrderId(), true)) {
+        if (visibilityMap.getOrDefault(order.getOrderId(), false)) {
             holder.itemView.setVisibility(View.VISIBLE);
             holder.orderId.setText(order.getOrderId());
             holder.orderDate.setText(order.getOrderDate().toString());

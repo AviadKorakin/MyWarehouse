@@ -30,6 +30,7 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polygon;
@@ -37,8 +38,7 @@ import com.google.android.gms.maps.model.PolygonOptions;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
-import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.gson.Gson;
+
 import com.journeyapps.barcodescanner.ScanContract;
 import com.journeyapps.barcodescanner.ScanOptions;
 import com.mywarehouse.mywarehouse.Adapters.ImageAdapter;
@@ -58,7 +58,6 @@ import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
@@ -81,14 +80,15 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
     private ImageAdapter imageAdapter;
     private WarehouseAdapter warehouseAdapter;
     private GoogleMap map;
-    private Gson gson;
-    private FirebaseFirestore db;
     private String currentPhotoPath;
     private int imagesToUploadCount = 0;
     private int imagesUploadedCount = 0;
     private boolean doneSuccessfully = false;
     private List<Warehouse> warehouseList = new ArrayList<>();
     private List<ItemWarehouse> itemWarehouseList = new ArrayList<>();
+    private Map<String,List<ItemWarehouse>> warehouseItemsMap= new HashMap<>();
+    private Warehouse selectedWarehouse;
+    private Map<ItemWarehouse,Marker> itemWarehouseMarkerMap=new HashMap<>();
     private List<Marker> markers = new ArrayList<>();
     private Polygon lastpolygon;
 
@@ -105,7 +105,6 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_item);
         overridePendingTransition(R.anim.dark_screen, R.anim.light_screen);
-        db = FirebaseFirestore.getInstance();
 
         findViews();
         initViews();
@@ -129,7 +128,6 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
     }
 
     private void initViews() {
-        gson = new Gson();
         recyclerImages.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
         imageAdapter = new ImageAdapter(this);
         recyclerImages.setAdapter(imageAdapter);
@@ -151,8 +149,19 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
         spinnerWarehouses.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                Warehouse selectedWarehouse = warehouseList.get(position);
+                selectedWarehouse= warehouseList.get(position);
                 showWarehouseOnMap(selectedWarehouse);
+                for (ItemWarehouse itemWarehouse : itemWarehouseList) {
+                    Marker marker=itemWarehouseMarkerMap.getOrDefault(itemWarehouse,null);
+                    if(marker!=null) {
+                        if (!itemWarehouse.getWarehouseName().equals(selectedWarehouse.getName()))
+                            itemWarehouseMarkerMap.get(itemWarehouse).setVisible(false);
+                        else {
+                            marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_box));
+                            itemWarehouseMarkerMap.get(itemWarehouse).setVisible(true);
+                        }
+                    }
+                }
             }
 
             @Override
@@ -242,8 +251,10 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
 
         String warehouseName = warehouseList.get(spinnerWarehouses.getSelectedItemPosition()).getName();
         ItemWarehouse itemWarehouse = new ItemWarehouse(warehouseName, latLng, 0);
+        warehouseItemsMap.computeIfAbsent(warehouseName, k -> new ArrayList<>()).add(itemWarehouse);
         itemWarehouseList.add(itemWarehouse);
         warehouseAdapter.notifyItemInserted(itemWarehouseList.size() - 1);
+        itemWarehouseMarkerMap.put(itemWarehouse,marker);
     }
 
     private boolean removeMarkerAndItem(Marker marker) {
@@ -251,13 +262,23 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
         if (index != -1) {
             marker.remove();
             markers.remove(index);
+            ItemWarehouse item= itemWarehouseList.get(index);
+            List<ItemWarehouse> updateList=warehouseItemsMap.get(selectedWarehouse.getName());
             itemWarehouseList.remove(index);
+            updateList.remove(item);
+            if(updateList.isEmpty())
+            {
+                warehouseItemsMap.remove(selectedWarehouse.getName());
+            }
+            else
+            {
+                warehouseItemsMap.put(selectedWarehouse.getName(),updateList);
+            }
             warehouseAdapter.notifyItemRemoved(index);
+            itemWarehouseMarkerMap.remove(item);
         }
         return true;
     }
-
-
 
     private boolean isLocationInsideWarehouse(LatLng location, List<LatLng> points) {
         int crossings = 0;
@@ -425,8 +446,7 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
 
         Date currentDate = new Date();
 
-        // Create warehouseItemMap from itemWarehouseList
-        Map<String, List<ItemWarehouse>> warehouseItemMap = createWarehouseItemMap(itemWarehouseList);
+
 
         Item item = new Item(
                 barcode,
@@ -438,7 +458,7 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
                 supplier,
                 currentDate,
                 itemWarehouseList,  // Retaining the original list
-                warehouseItemMap,   // Adding the new map
+               warehouseItemsMap,   // Adding the new map
                 0,
                 false
         );
@@ -463,21 +483,6 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
         });
     }
 
-    private Map<String, List<ItemWarehouse>> createWarehouseItemMap(List<ItemWarehouse> itemWarehouseList) {
-        Map<String, List<ItemWarehouse>> warehouseItemMap = new HashMap<>();
-
-        for (ItemWarehouse itemWarehouse : itemWarehouseList) {
-            String warehouseName = itemWarehouse.getWarehouseName();
-
-            if (!warehouseItemMap.containsKey(warehouseName)) {
-                warehouseItemMap.put(warehouseName, new ArrayList<>());
-            }
-
-            warehouseItemMap.get(warehouseName).add(itemWarehouse);
-        }
-
-        return warehouseItemMap;
-    }
 
     private int calculateTotalQuantity() {
         int totalQuantity = 0;
@@ -494,7 +499,7 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
         for (ItemWarehouse itemWarehouse : item.getItemWarehouses()) {
             notes.append("- Warehouse: ").append(itemWarehouse.getWarehouseName()).append("- Qty: ").append(itemWarehouse.getQuantity()).append("\n");
         }
-        MyLog myLog = new MyLog("Item creation", date, notes.toString(), invokedBy, LogType.ITEM_CREATION);
+        MyLog myLog = new MyLog(UUID.randomUUID().toString(),"Item creation", date, notes.toString(), invokedBy, LogType.ITEM_CREATION);
 
         FirebaseAddItem.saveLog(myLog, new FirebaseAddItem.FirestoreCallback() {
             @Override
@@ -546,18 +551,15 @@ public class AddItemActivity extends AppCompatActivity implements OnMapReadyCall
         }
         lastpolygon= map.addPolygon(polygonOptions);
 
-        map.moveCamera(CameraUpdateFactory.newLatLngZoom(avgPoint(sortedPoints), 19));
+        List<LatLng> points = warehouse.getPoints();
+        LatLngBounds.Builder builder = new LatLngBounds.Builder();
+        for (LatLng point : points) {
+            builder.include(point);
+        }
+        LatLngBounds bounds = builder.build();
+        map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 100));
     }
 
-    private LatLng avgPoint(List<LatLng> sortedPoints) {
-        double lat = 0;
-        double lng = 0;
-        for (LatLng point : sortedPoints) {
-            lat += point.latitude;
-            lng += point.longitude;
-        }
-        return new LatLng(lat / sortedPoints.size(), lng / sortedPoints.size());
-    }
 
     private void openFileChooser() {
         Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);

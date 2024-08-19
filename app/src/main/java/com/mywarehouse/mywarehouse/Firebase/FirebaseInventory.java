@@ -1,40 +1,54 @@
 package com.mywarehouse.mywarehouse.Firebase;
 
-import com.google.firebase.firestore.EventListener;
-import com.google.firebase.firestore.FirebaseFirestoreException;
-import com.google.firebase.firestore.QueryDocumentSnapshot;
-import com.google.firebase.firestore.QuerySnapshot;
+import com.google.firebase.firestore.DocumentChange;
+import com.google.firebase.firestore.ListenerRegistration;
 import com.mywarehouse.mywarehouse.Models.Item;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class FirebaseInventory extends FirebaseManager {
 
+    private static ListenerRegistration itemListener;
+
     public interface InventoryCallback {
-        void onCallback(List<Item> itemList);
+        void onItemAdded(Item item);
+        void onItemModified(Item item);
+        void onItemRemoved(String itemId);
         void onError(Exception e);
     }
 
-    // Real-time listener for changes in the "items" collection
     public static void listenToItems(InventoryCallback callback) {
-        db.collection("items").addSnapshotListener(new EventListener<QuerySnapshot>() {
-            @Override
-            public void onEvent(QuerySnapshot snapshots, FirebaseFirestoreException e) {
-                if (e != null) {
-                    callback.onError(e);
-                    return;
-                }
-                if (snapshots != null && !snapshots.isEmpty()) {
-                    List<Item> itemList = new ArrayList<>();
-                    for (QueryDocumentSnapshot document : snapshots) {
-                        Item item = document.toObject(Item.class);
-                        itemList.add(item);
+        if (itemListener != null) {
+            itemListener.remove(); // Remove any existing listener to avoid duplicates
+        }
+
+        itemListener = db.collection("items").addSnapshotListener((snapshots, e) -> {
+            if (e != null) {
+                callback.onError(e);
+                return;
+            }
+
+            if (snapshots != null) {
+                for (DocumentChange dc : snapshots.getDocumentChanges()) {
+                    Item item = dc.getDocument().toObject(Item.class);
+                    switch (dc.getType()) {
+                        case ADDED:
+                            callback.onItemAdded(item);
+                            break;
+                        case MODIFIED:
+                            callback.onItemModified(item);
+                            break;
+                        case REMOVED:
+                            callback.onItemRemoved(dc.getDocument().getId());
+                            break;
                     }
-                    callback.onCallback(itemList);
                 }
             }
         });
     }
 
+    public static void removeAllListeners() {
+        if (itemListener != null) {
+            itemListener.remove();
+            itemListener = null;
+        }
+    }
 }

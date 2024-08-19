@@ -13,7 +13,6 @@ import com.mywarehouse.mywarehouse.Models.Warehouse;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 public class FirebaseAddItem extends FirebaseManager{
 
@@ -58,8 +57,7 @@ public class FirebaseAddItem extends FirebaseManager{
     }
 
     public static void saveLog( MyLog myLog, FirestoreCallback callback) {
-        String logId = "item_creation_" + myLog.getInvokedBy() + "_" + UUID.randomUUID().toString();
-        db.collection("logs").document(logId).set(myLog)
+        db.collection("logs").document(myLog.getId()).set(myLog)
                 .addOnSuccessListener(aVoid -> callback.onSuccess())
                 .addOnFailureListener(callback::onFailure);
     }

@@ -5,12 +5,12 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.AppCompatImageButton;
 import androidx.appcompat.widget.AppCompatSpinner;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -35,11 +35,16 @@ public class PickupOrdersActivity extends AppCompatActivity {
     private RecyclerView recyclerViewOrders;
     private PickupOrderAdapter pickupOrderAdapter;
     private BottomNavigationView bottomNavigationView;
+    private ProgressBar progressBar;
     private List<Order> orderList;
     private List<Warehouse> warehouseList;
     private Map<String, List<PickupItemWithImages>> orderPickupItemsMap;
     private Map<String, List<Item>> orderItemsMap;
-    private Map<String, Item> cachedItemsMap;  // Cache for fetched items
+    private Map<String, Item> cachedItemsMap;
+    private Map<String, List<String>> itemOrderMap; // Maps item keys to list of order IDs
+    private Map<String, Boolean> itemListenerMap; // Maps item keys to whether a listener has been set up
+    private int totalRegisteredOrders = 0;
+    private int loadedOrders = 0;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -49,24 +54,29 @@ public class PickupOrdersActivity extends AppCompatActivity {
 
         initViews();
         setupNavigationBar();
-        fetchInitialData();
+        showLoading();
+        fetchWarehousesAndSetupListeners();
     }
 
     private void initViews() {
         spinnerWarehouses = findViewById(R.id.spinner_warehouses);
         recyclerViewOrders = findViewById(R.id.recycler_view_orders);
         bottomNavigationView = findViewById(R.id.bottom_navigation);
+        progressBar = findViewById(R.id.progress_bar);
 
         orderList = new ArrayList<>();
         warehouseList = new ArrayList<>();
         orderPickupItemsMap = new HashMap<>();
         orderItemsMap = new HashMap<>();
-        cachedItemsMap = new HashMap<>();  // Initialize the cache
+        cachedItemsMap = new HashMap<>();
+        itemOrderMap = new HashMap<>();
+        itemListenerMap = new HashMap<>();
 
-        pickupOrderAdapter = new PickupOrderAdapter(this, orderList, orderPickupItemsMap, orderItemsMap, "");
-
+        // Initialize the adapter early, but don't hide the loading indicator yet
+        pickupOrderAdapter = new PickupOrderAdapter(this, orderList, orderPickupItemsMap, orderItemsMap, "NONE");
         recyclerViewOrders.setLayoutManager(new LinearLayoutManager(this));
         recyclerViewOrders.setAdapter(pickupOrderAdapter);
+
         OnBackPressedCallback callback = new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -77,7 +87,6 @@ public class PickupOrdersActivity extends AppCompatActivity {
         };
 
         getOnBackPressedDispatcher().addCallback(this, callback);
-
     }
 
     private void setupNavigationBar() {
@@ -85,27 +94,20 @@ public class PickupOrdersActivity extends AppCompatActivity {
         NavigationBarManager.getInstance().setNavigation(bottomNavigationView, this, R.id.navigation_orders);
     }
 
-    private void fetchInitialData() {
-        fetchWarehouses(() -> {
-            fetchOrders();
-            setupOrderListeners();
-            setupItemListeners();
-        });
-    }
-
-    private void fetchWarehouses(Runnable onComplete) {
+    private void fetchWarehousesAndSetupListeners() {
         FirebasePickupOrders.fetchWarehouses(new FirebasePickupOrders.FetchCallback<Warehouse>() {
             @Override
             public void onSuccess(List<Warehouse> warehouses) {
                 warehouseList.clear();
                 warehouseList.addAll(warehouses);
                 setupWarehouseSpinner();
-                onComplete.run();
+                fetchOrderCountAndInitializeListeners(); // Proceed to fetch orders count and setup listeners
             }
 
             @Override
             public void onFailure(Exception e) {
                 Toast.makeText(PickupOrdersActivity.this, "Error getting warehouses", Toast.LENGTH_SHORT).show();
+                hideLoading(); // Hide loading on failure
             }
         });
     }
@@ -126,6 +128,7 @@ public class PickupOrdersActivity extends AppCompatActivity {
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 String selectedWarehouse = warehouseNames.get(position);
                 pickupOrderAdapter.setSelectedWarehouse(selectedWarehouse);
+                pickupOrderAdapter.checkOrderAvailability(); // Re-check availability on warehouse change
             }
 
             @Override
@@ -135,63 +138,34 @@ public class PickupOrdersActivity extends AppCompatActivity {
         });
     }
 
-    private void fetchOrders() {
-        FirebasePickupOrders.fetchOrders(new FirebasePickupOrders.FetchCallback<Order>() {
+    private void fetchOrderCountAndInitializeListeners() {
+        FirebasePickupOrders.fetchRegisteredOrderCount(new FirebasePickupOrders.OrderCountCallback() {
             @Override
-            public void onSuccess(List<Order> orders) {
-                orderList.clear();
-                orderList.addAll(orders);
-                fetchItemsForOrders();
+            public void onOrderCountFetched(int count) {
+                totalRegisteredOrders = count;
+                if (totalRegisteredOrders == 0) {
+                    Toast.makeText(PickupOrdersActivity.this, "No orders to show", Toast.LENGTH_SHORT).show();
+                    hideLoading(); // Hide loading if there are no registered orders
+                } else {
+                    setupOrderListeners(); // Set up the real-time listeners for orders
+                }
             }
 
             @Override
             public void onFailure(Exception e) {
-                Toast.makeText(PickupOrdersActivity.this, "Error getting orders", Toast.LENGTH_SHORT).show();
+                Toast.makeText(PickupOrdersActivity.this, "Failed to fetch order count", Toast.LENGTH_SHORT).show();
+                hideLoading(); // Hide loading on failure
             }
         });
     }
 
-    private void fetchItemsForOrders() {
-        if (orderList.isEmpty()) return;
-
-        for (Order order : orderList) {
-            FirebasePickupOrders.fetchPickupItemsWithImages(order.getPickupItems(), new FirebasePickupOrders.PickupItemsCallback() {
-                @Override
-                public void onCallback(List<PickupItemWithImages> pickupItemsWithImages) {
-                    orderPickupItemsMap.put(order.getOrderId(), pickupItemsWithImages);
-
-                    // Fetch item details for each pickup item
-                    List<Item> itemsList = new ArrayList<>();
-                    for (PickupItemWithImages pickupItemWithImages : pickupItemsWithImages) {
-                        String itemKey = pickupItemWithImages.getPickupItem().getBarcode() + "_" + pickupItemWithImages.getPickupItem().getName();
-                        if (cachedItemsMap.containsKey(itemKey)) {
-                            itemsList.add(cachedItemsMap.get(itemKey));
-                            if (itemsList.size() == pickupItemsWithImages.size()) {
-                                orderItemsMap.put(order.getOrderId(), itemsList);
-                            }
-                        } else {
-                            FirebasePickupOrders.fetchItem(itemKey, item -> {
-                                if (item != null) {
-                                    cachedItemsMap.put(itemKey, item);  // Store in cache
-                                    itemsList.add(item);
-                                    if (itemsList.size() == pickupItemsWithImages.size()) {
-                                        orderItemsMap.put(order.getOrderId(), itemsList);
-                                    }
-                                }
-                            });
-                        }
-                    }
-                }
-            });
-        }
-    }
-
     private void setupOrderListeners() {
-        FirebasePickupOrders.listenToOrderChanges(new FirebasePickupOrders.OrdersListenerCallback() {
+        FirebasePickupOrders.listenToAllOrdersWithStatusFiltering(new FirebasePickupOrders.OrdersListenerCallback() {
             @Override
             public void onOrderAdded(Order order) {
                 orderList.add(order);
                 pickupOrderAdapter.notifyItemInserted(orderList.size() - 1);
+                fetchItemsForOrder(order); // Fetch items for the newly added order
             }
 
             @Override
@@ -200,6 +174,7 @@ public class PickupOrdersActivity extends AppCompatActivity {
                 if (index != -1) {
                     orderList.set(index, order);
                     pickupOrderAdapter.notifyItemChanged(index);
+                    fetchItemsForOrder(order); // Fetch items again if the order is modified
                 }
             }
 
@@ -208,34 +183,112 @@ public class PickupOrdersActivity extends AppCompatActivity {
                 int index = findOrderIndexById(order.getOrderId());
                 if (index != -1) {
                     orderList.remove(index);
+                    removeOrderFromItemMap(order);
+                    orderPickupItemsMap.remove(order.getOrderId());
+                    orderItemsMap.remove(order.getOrderId());
                     pickupOrderAdapter.notifyItemRemoved(index);
+                    checkIfAllOrdersLoaded();
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
                 Toast.makeText(PickupOrdersActivity.this, "Error listening to order changes: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                hideLoading(); // Hide loading on failure
             }
         });
     }
 
-    private void setupItemListeners() {
-        FirebasePickupOrders.listenToItemChanges(item -> {
-            String itemKey = item.getBarcode() + "_" + item.getName();
-            cachedItemsMap.put(itemKey, item);  // Update the cache
+    private void fetchItemsForOrder(Order order) {
+        FirebasePickupOrders.fetchPickupItemsWithImages(order.getPickupItems(), pickupItemsWithImages -> {
+            orderPickupItemsMap.put(order.getOrderId(), pickupItemsWithImages);
 
-            for (int i = 0; i < orderList.size(); i++) {
-                List<Item> itemsList = orderItemsMap.get(orderList.get(i).getOrderId());
-                if (itemsList != null) {
-                    for (int j = 0; j < itemsList.size(); j++) {
-                        if (itemsList.get(j).equals(item)) {
-                            itemsList.set(j, item);
+            // Fetch item details for each pickup item
+            List<Item> itemsList = new ArrayList<>();
+            for (PickupItemWithImages pickupItemWithImages : pickupItemsWithImages) {
+                String itemKey = pickupItemWithImages.getPickupItem().getBarcode() + "_" + pickupItemWithImages.getPickupItem().getName();
+                addOrderToItemMap(itemKey, order.getOrderId());
+
+                if (cachedItemsMap.containsKey(itemKey)) {
+                    itemsList.add(cachedItemsMap.get(itemKey));
+                    if (itemsList.size() == pickupItemsWithImages.size()) {
+                        orderItemsMap.put(order.getOrderId(), itemsList);
+                        checkIfAllOrdersLoaded();
+                    }
+                } else {
+                    FirebasePickupOrders.fetchItem(itemKey, item -> {
+                        if (item != null) {
+                            cachedItemsMap.put(itemKey, item);  // Store in cache
+                            itemsList.add(item);
+                            if (itemsList.size() == pickupItemsWithImages.size()) {
+                                orderItemsMap.put(order.getOrderId(), itemsList);
+                                checkIfAllOrdersLoaded();
+                            }
                         }
+                    });
+                }
+            }
+
+            // Set up listeners for each item in the order
+            setupItemListenersForOrder(order);
+        });
+    }
+
+    private void setupItemListenersForOrder(Order order) {
+        List<PickupItemWithImages> pickupItemsWithImagesList = orderPickupItemsMap.get(order.getOrderId());
+        if (pickupItemsWithImagesList != null) {
+            for (PickupItemWithImages pickupItemWithImages : pickupItemsWithImagesList) {
+                String itemKey = pickupItemWithImages.getPickupItem().getBarcode() + "_" + pickupItemWithImages.getPickupItem().getName();
+                if (!itemListenerMap.containsKey(itemKey)) { // Check if a listener is already set up
+                    itemListenerMap.put(itemKey, true); // Mark listener as set up
+
+                    FirebasePickupOrders.listenToItemChanges(itemKey, item -> {
+                        if (item != null) {
+                            // Update the cached item
+                            cachedItemsMap.put(itemKey, item);
+
+                            // Update the orders with the new item data
+                            pickupOrderAdapter.updateItemInOrder(itemKey, item);
+
+                        } else {
+                            // If the item was removed, remove it from the cache and the orders
+                            cachedItemsMap.remove(itemKey);
+                            pickupOrderAdapter.updateItemInOrder(itemKey, null);
+                        }
+
+                        resetSpinnerSelection(); // Reset spinner to "NONE"
+                    });
+                }
+            }
+        }
+    }
+
+
+    private void addOrderToItemMap(String itemKey, String orderId) {
+        List<String> orderIds = itemOrderMap.getOrDefault(itemKey, new ArrayList<>());
+        orderIds.add(orderId);
+        itemOrderMap.put(itemKey, orderIds);
+    }
+
+    private void removeOrderFromItemMap(Order order) {
+        List<PickupItemWithImages> pickupItemsWithImagesList = orderPickupItemsMap.get(order.getOrderId());
+        if (pickupItemsWithImagesList != null) {
+            for (PickupItemWithImages pickupItemWithImages : pickupItemsWithImagesList) {
+                String itemKey = pickupItemWithImages.getPickupItem().getBarcode() + "_" + pickupItemWithImages.getPickupItem().getName();
+                List<String> orderIds = itemOrderMap.get(itemKey);
+                if (orderIds != null) {
+                    orderIds.remove(order.getOrderId());
+                    if (orderIds.isEmpty()) {
+                        itemOrderMap.remove(itemKey);
                     }
                 }
             }
-            pickupOrderAdapter.checkOrderAvailability();
-        });
+        }
+    }
+
+
+    private void resetSpinnerSelection() {
+        spinnerWarehouses.setSelection(0);
     }
 
     private int findOrderIndexById(String orderId) {
@@ -247,5 +300,27 @@ public class PickupOrdersActivity extends AppCompatActivity {
         return -1;
     }
 
+    private void checkIfAllOrdersLoaded() {
+        loadedOrders++;
+        if (loadedOrders >= totalRegisteredOrders) {
+            hideLoading(); // All registered orders are loaded, hide the loading spinner
+        }
+    }
 
+    private void showLoading() {
+        progressBar.setVisibility(View.VISIBLE);
+        recyclerViewOrders.setVisibility(View.GONE);
+    }
+
+    private void hideLoading() {
+        progressBar.setVisibility(View.GONE);
+        recyclerViewOrders.setVisibility(View.VISIBLE);
+        spinnerWarehouses.setVisibility(View.VISIBLE);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        FirebasePickupOrders.removeAllListeners(); // Remove listeners when the activity is destroyed
+    }
 }

@@ -51,6 +51,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 
 public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyCallback {
 
@@ -196,7 +197,7 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
                     Marker marker = map.addMarker(new MarkerOptions()
                             .position(location)
                             .title(item.getPickupItemWithImages().getPickupItem().getName())
-                            .icon(getBitmapDescriptor(R.drawable.ic_box)));
+                                    .visible(false));
                     markerItemMap.put(marker, item.getPickupItemWithImages().getPickupItem());
                     markerItemWarehouseHashMap.put(marker, itemWarehouse);
                     itemWarehouseMarkerHashMap.put(itemWarehouse,marker);
@@ -217,6 +218,7 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
                         marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_redbox));
                     }
                     else marker.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.ic_boxgreen));
+                     marker.setVisible(true);
                     markerSelectedMap.put(marker, true);
                     selectedMarkers.add(marker);
 
@@ -243,7 +245,7 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
 
     private void resetSelectedMarkers() {
         for (Marker marker : selectedMarkers) {
-            marker.setIcon(getBitmapDescriptor(R.drawable.ic_box));
+           marker.setVisible(false);
             markerSelectedMap.put(marker, false);
         }
         selectedMarkers.clear();
@@ -406,7 +408,13 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
             }
 
             // Update the warehouse item map for the selected warehouse
-            item.getWarehouseItemMap().put(selectedWarehouseName, updatedWarehouses);
+            if(updatedWarehouses.isEmpty())
+            {
+                if(item.getWarehouseItemMap().get(selectedWarehouseName)!=null) {
+                    item.getWarehouseItemMap().remove(selectedWarehouseName);
+                }
+            }
+            else item.getWarehouseItemMap().put(selectedWarehouseName, updatedWarehouses);
 
             // Update the item's total quantity and requested amount
             int updatedTotalQuantity = item.getTotalQuantity() - pickupItem.getQuantity();
@@ -436,7 +444,7 @@ public class ShowPickUpActivity extends AppCompatActivity implements OnMapReadyC
     private void saveOutOfStockLog(String itemName, String barcode, Date date) {
         String invokedBy = MyUser.getInstance().getUser().getName();
         String notes = "Item " + itemName + " is out of stock due to fulfilling an order.";
-        MyLog myLog = new MyLog("Item out of stock", date, notes, invokedBy, LogType.OUT_OF_STOCK);
+        MyLog myLog = new MyLog(UUID.randomUUID().toString(),"Item out of stock", date, notes, invokedBy, LogType.OUT_OF_STOCK);
 
         FirebaseUpdateItem.saveLog(myLog, new FirebaseUpdateItem.FirestoreCallback<Void>() {
             @Override

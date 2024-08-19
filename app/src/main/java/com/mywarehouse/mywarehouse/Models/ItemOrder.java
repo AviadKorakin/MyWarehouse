@@ -4,6 +4,7 @@ import android.os.Parcel;
 import android.os.Parcelable;
 
 import java.util.List;
+import java.util.Objects;
 
 public class ItemOrder extends Item implements Parcelable {
     private int selectedQuantity;
@@ -46,6 +47,10 @@ public class ItemOrder extends Item implements Parcelable {
     public void writeToParcel(Parcel dest, int flags) {
         super.writeToParcel(dest, flags);
         dest.writeInt(selectedQuantity);
+    }
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), selectedQuantity);
     }
 
     @Override

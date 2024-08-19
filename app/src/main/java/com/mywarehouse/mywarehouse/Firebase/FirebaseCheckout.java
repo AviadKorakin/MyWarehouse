@@ -83,11 +83,10 @@ public class FirebaseCheckout extends FirebaseManager{
                             itemRef.update("requestedAmount", item.getRequestedAmount() + item.getSelectedQuantity());
                         }
 
-                        String logId = "order_creation_" + UUID.randomUUID().toString();
                         String logNotes = createLogNotes(pickupItems);
-                        MyLog log = new MyLog("Order #" + orderId + " is ready for pickup", new Date(), logNotes, MyUser.getInstance().getUser().getName(), LogType.ORDER_CREATION);
+                        MyLog log = new MyLog(UUID.randomUUID().toString(),"Order #" + orderId + " is ready for pickup", new Date(), logNotes, MyUser.getInstance().getUser().getName(), LogType.ORDER_CREATION);
 
-                        db.collection("logs").document(logId).set(log)
+                        db.collection("logs").document(log.getId()).set(log)
                                 .addOnSuccessListener(documentReference -> callback.onSuccess(orderId))
                                 .addOnFailureListener(callback::onFailure);
                     } else {

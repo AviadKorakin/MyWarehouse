@@ -11,7 +11,6 @@ import androidx.appcompat.widget.AppCompatImageButton;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.bumptech.glide.Glide;
 import com.google.android.material.textview.MaterialTextView;
 import com.mywarehouse.mywarehouse.Models.ItemOrder;
 import com.mywarehouse.mywarehouse.R;
@@ -55,7 +54,7 @@ public class ItemOrderAdapter extends RecyclerView.Adapter<ItemOrderAdapter.View
 
         holder.buttonPlus.setOnClickListener(v -> {
             int selectedQuantity = itemOrder.getSelectedQuantity();
-            if (selectedQuantity < itemOrder.getTotalQuantity()-itemOrder.getRequestedAmount()) {
+            if (selectedQuantity < itemOrder.getTotalQuantity() - itemOrder.getRequestedAmount()) {
                 itemOrder.setSelectedQuantity(selectedQuantity + 1);
                 holder.itemQuantity.setText(String.valueOf(itemOrder.getSelectedQuantity()));
                 onQuantityChangeListener.onQuantityChange(getTotalSelectedItems());
@@ -92,16 +91,45 @@ public class ItemOrderAdapter extends RecyclerView.Adapter<ItemOrderAdapter.View
         notifyDataSetChanged();
     }
 
-    public void setMaxQuantityForItem(ItemOrder updatedItem) {
-        for (ItemOrder itemOrder : itemOrderList) {
-            if (itemOrder.getBarcode().equals(updatedItem.getBarcode()) && itemOrder.getName().equals(updatedItem.getName())) {
-                if (itemOrder.getSelectedQuantity() > updatedItem.getTotalQuantity()-updatedItem.getRequestedAmount()) {
-                    itemOrder.setSelectedQuantity(updatedItem.getRequestedAmount());
-                }
-                notifyDataSetChanged();
-                break;
+    public void addItem(ItemOrder newItem) {
+        itemOrderList.add(newItem);
+        notifyItemInserted(itemOrderList.size() - 1);
+    }
+
+    public void updateItem(ItemOrder updatedItem) {
+        int index = findItemIndex(updatedItem);
+        if (index != -1) {
+            itemOrderList.set(index, updatedItem);
+            notifyItemChanged(index);
+        }
+    }
+
+    public void removeItem(String itemId) {
+        int index = findItemIndexById(itemId);
+        if (index != -1) {
+            itemOrderList.remove(index);
+            notifyItemRemoved(index);
+        }
+    }
+
+    private int findItemIndex(ItemOrder item) {
+        for (int i = 0; i < itemOrderList.size(); i++) {
+            ItemOrder currentItem = itemOrderList.get(i);
+            if (currentItem.getBarcode().equals(item.getBarcode()) && currentItem.getName().equals(item.getName())) {
+                return i;
             }
         }
+        return -1;
+    }
+
+    private int findItemIndexById(String itemId) {
+        for (int i = 0; i < itemOrderList.size(); i++) {
+            String currentId = itemOrderList.get(i).getBarcode() + "_" + itemOrderList.get(i).getName();
+            if (currentId.equals(itemId)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {

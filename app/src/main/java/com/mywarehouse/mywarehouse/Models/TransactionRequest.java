@@ -5,6 +5,7 @@ import android.os.Parcelable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class TransactionRequest implements Parcelable {
     private String requestId;
@@ -108,5 +109,24 @@ public class TransactionRequest implements Parcelable {
 
     public void setOnUpdate(boolean onUpdate) {
         this.onUpdate = onUpdate;
+    }
+
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TransactionRequest that = (TransactionRequest) o;
+        return onUpdate == that.onUpdate &&
+                Objects.equals(requestId, that.requestId) &&
+                Objects.equals(Warehouse, that.Warehouse) &&
+                Objects.equals(orderId, that.orderId) &&
+                Objects.equals(CreatedBy, that.CreatedBy) &&
+                Objects.equals(requestedItemsToMove, that.requestedItemsToMove);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(requestId, Warehouse, orderId, CreatedBy, requestedItemsToMove, onUpdate);
     }
 }
