@@ -59,6 +59,13 @@ public class InventoryDetailsActivity extends AppCompatActivity {
             Toast.makeText(this, "Cancelled", Toast.LENGTH_LONG).show();
         } else {
             searchInput.setText(result.getContents());
+            String query = searchInput.getText().toString();
+
+            if (queryCache.containsKey(query)) {
+                updateItemList(queryCache.get(query));
+            } else {
+                searchItems(query);
+            }
         }
     });
 
@@ -161,7 +168,7 @@ public class InventoryDetailsActivity extends AppCompatActivity {
         List<Item> results = new ArrayList<>();
         if (itemMap.isEmpty()) return results;
         for (Item item : itemMap.values()) {
-            if (item.getBarcode().contains(query) || item.getName().contains(query)) {
+            if (item.getBarcode().contains(query) || item.getName().toLowerCase().contains(query.toLowerCase())) {
                 results.add(item);
             }
         }

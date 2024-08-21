@@ -4,6 +4,8 @@ import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.os.Bundle;
 
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.View;
 
 import android.widget.ProgressBar;
@@ -46,6 +48,7 @@ public class AddOrderActivity extends AppCompatActivity {
     private AppCompatImageButton buttonScanBarcode, buttonCart;
     private ProgressBar progressBar;
     private Map<String, ItemOrder> itemMap;
+    private Map<String, List<ItemOrder>> queryCache;
     private int totalSelectedItems = 0;
     private int totalItemCount = -1;
     private int loadedItemCount = 0;
@@ -57,6 +60,14 @@ public class AddOrderActivity extends AppCompatActivity {
             Toast.makeText(this, "Cancelled", Toast.LENGTH_LONG).show();
         } else {
             searchInput.setText(result.getContents());
+            String query = searchInput.getText().toString();
+
+            // Handle the search query after scanning with cache support
+            if (queryCache.containsKey(query)) {
+                updateItemList(queryCache.get(query));
+            } else {
+                searchItems(query);
+            }
         }
     });
 
@@ -81,6 +92,7 @@ public class AddOrderActivity extends AppCompatActivity {
 
         initViews();
         setupNavigationBar();
+        setupSearch();  // Setup search functionality
         showLoading();  // Show loading indicator
         setupRealtimeListener();  // Set up the real-time listener
     }
@@ -97,6 +109,7 @@ public class AddOrderActivity extends AppCompatActivity {
 
         itemOrderList = new ArrayList<>();
         itemMap = new HashMap<>();
+        queryCache = new HashMap<>();
         itemOrderAdapter = new ItemOrderAdapter(this, itemOrderList, this::updateTotalSelectedItems);
         recyclerViewItems.setLayoutManager(new LinearLayoutManager(this));
         recyclerViewItems.setAdapter(itemOrderAdapter);
@@ -132,6 +145,31 @@ public class AddOrderActivity extends AppCompatActivity {
         getOnBackPressedDispatcher().addCallback(this, callback);
     }
 
+    private void setupSearch() {
+        searchInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                // No action needed here
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                String query = s.toString().trim();
+
+                if (queryCache.containsKey(query)) {
+                    updateItemList(queryCache.get(query));
+                } else {
+                    searchItems(query);
+                }
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                // No action needed here
+            }
+        });
+    }
+
     private void setupRealtimeListener() {
         FirebaseAddOrder.listenToItems(new FirebaseAddOrder.ItemsCallback() {
             @Override
@@ -152,9 +190,9 @@ public class AddOrderActivity extends AppCompatActivity {
             @Override
             public void onItemRemoved(String itemId) {
                 itemMap.remove(itemId);
-                int toDiscount= findItemIndexById(itemId);
-                if(toDiscount!=0 && toDiscount!=-1)
-                updateTotalSelectedItems(totalSelectedItems-toDiscount);
+                int toDiscount = findItemIndexById(itemId);
+                if (toDiscount != 0 && toDiscount != -1)
+                    updateTotalSelectedItems(totalSelectedItems - toDiscount);
                 itemOrderAdapter.removeItem(itemId);
                 loadedItemCount--;
                 checkInitialLoadComplete();
@@ -188,20 +226,42 @@ public class AddOrderActivity extends AppCompatActivity {
         }
         return selectedItems;
     }
+
     private int findItemIndexById(String itemId) {
         for (int i = 0; i < itemOrderList.size(); i++) {
             String currentId = itemOrderList.get(i).getBarcode() + "_" + itemOrderList.get(i).getName();
             if (currentId.equals(itemId)) {
-               return itemOrderList.get(i).getSelectedQuantity();
+                return itemOrderList.get(i).getSelectedQuantity();
             }
         }
         return -1;
     }
+
     private void checkInitialLoadComplete() {
         if (totalItemCount != -1 && loadedItemCount >= totalItemCount && !isInitialLoadComplete) {
             isInitialLoadComplete = true;
             hideLoading();
         }
+    }
+
+    private void searchItems(String query) {
+        List<ItemOrder> results = addToQueryCache(query);
+        updateItemList(results);
+    }
+
+    private List<ItemOrder> addToQueryCache(String query) {
+        List<ItemOrder> results = new ArrayList<>();
+        for (ItemOrder item : itemMap.values()) {
+            if (item.getBarcode().contains(query) || item.getName().toLowerCase().contains(query.toLowerCase())) {
+                results.add(item);
+            }
+        }
+        queryCache.put(query, results);
+        return results;
+    }
+
+    private void updateItemList(List<ItemOrder> items) {
+        itemOrderAdapter.updateItems(items);
     }
 
     private void showLoading() {
